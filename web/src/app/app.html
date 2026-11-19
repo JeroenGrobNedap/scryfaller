@@ -19,16 +19,7 @@
       <a class="button primary" [href]="scryfallUrl(store.query())" target="_blank" rel="noopener">Scryfall ↗</a>
     </div>
   </div>
-  @if (store.explanation().length) {
-    <details class="explain-toggle">
-      <summary>What this searches for</summary>
-      <ul class="explain">
-        @for (line of store.explanation(); track $index) {
-          <li>{{ line }}</li>
-        }
-      </ul>
-    </details>
-  }
+  <app-part-counts />
   <details class="advanced">
     <summary>Edit card text by hand</summary>
     <app-node-editor [node]="store.state().root" />
@@ -36,5 +27,7 @@
 </section>
 
 <app-saved-panel />
+
+<app-shortlist />
 
 <app-results />

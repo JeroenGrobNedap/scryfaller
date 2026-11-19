@@ -612,3 +612,299 @@ p.small {
 .more-body .slot select {
   justify-self: start;
 }
+
+/* Search box keyboard hint */
+.phrase-field {
+  position: relative;
+  flex: 1;
+  min-width: 0;
+  display: flex;
+}
+
+.phrase-field .phrase-input {
+  padding-right: 36px;
+}
+
+.kbd-hint {
+  position: absolute;
+  right: 10px;
+  top: 50%;
+  transform: translateY(-50%);
+  font: 0.75rem ui-monospace, Menlo, monospace;
+  color: var(--muted);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 0 5px;
+  pointer-events: none;
+}
+
+.phrase-input:focus + .kbd-hint {
+  display: none;
+}
+
+/* Results: view toggle, pick buttons, list view */
+.view-toggle .small {
+  padding: 2px 9px;
+}
+
+.card-tile {
+  position: relative;
+}
+
+.tile-open {
+  display: block;
+  width: 100%;
+  height: 100%;
+  padding: 0;
+  border: none;
+  background: none;
+  border-radius: inherit;
+  overflow: hidden;
+}
+
+.pick {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border-radius: 50%;
+  font-weight: 700;
+  line-height: 1;
+  background: rgb(0 0 0 / 0.6);
+  color: #fff;
+  border-color: transparent;
+  opacity: 0;
+  transition: opacity 0.12s;
+}
+
+.card-tile:hover .pick,
+.pick:focus-visible,
+.pick.on {
+  opacity: 1;
+}
+
+@media (hover: none) {
+  .pick {
+    opacity: 0.85;
+  }
+}
+
+.pick.on {
+  background: var(--accent);
+  color: var(--accent-text);
+}
+
+.pick.inline {
+  position: static;
+  opacity: 1;
+  width: 24px;
+  height: 24px;
+  background: var(--surface-2);
+  color: var(--text);
+}
+
+.pick.inline.on {
+  background: var(--accent);
+  color: var(--accent-text);
+}
+
+.card-list {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.9rem;
+  transition: opacity 0.15s;
+}
+
+.card-list.stale {
+  opacity: 0.45;
+}
+
+.card-list td {
+  padding: 4px 6px;
+  border-bottom: 1px solid var(--border);
+  vertical-align: middle;
+}
+
+.cl-pick {
+  width: 32px;
+}
+
+.cl-price {
+  text-align: right;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+
+.cl-cost {
+  white-space: nowrap;
+}
+
+@media (max-width: 560px) {
+  .cl-type {
+    display: none;
+  }
+}
+
+/* Mana symbols */
+.mana-cost {
+  display: inline-flex;
+  gap: 2px;
+  vertical-align: middle;
+}
+
+.sym {
+  display: inline-grid;
+  place-items: center;
+  min-width: 17px;
+  height: 17px;
+  padding: 0 2px;
+  border-radius: 9px;
+  font-size: 0.68rem;
+  font-weight: 700;
+  background: #d6d3cf;
+  color: #3d3a36;
+}
+
+.sym-w { background: #f8f1d4; color: #5c5130; }
+.sym-u { background: #bcdcf1; color: #13405f; }
+.sym-b { background: #b9b0ae; color: #221c1b; }
+.sym-r { background: #f2b59a; color: #6b1f0b; }
+.sym-g { background: #a7d3b2; color: #133d1e; }
+
+/* Card preview */
+.overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  background: rgb(0 0 0 / 0.55);
+  display: grid;
+  place-items: center;
+  padding: 16px;
+}
+
+.preview {
+  display: grid;
+  grid-template-columns: minmax(0, 300px) minmax(0, 1fr);
+  gap: 16px;
+  width: min(760px, 100%);
+  max-height: calc(100vh - 32px);
+  overflow-y: auto;
+  padding: 14px;
+}
+
+.preview-img img {
+  display: block;
+  width: 100%;
+  border-radius: 4.75% / 3.5%;
+}
+
+.preview-body {
+  display: grid;
+  align-content: start;
+  gap: 10px;
+}
+
+.face-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  justify-content: space-between;
+}
+
+.face h3 {
+  margin: 0;
+  font-size: 1.1rem;
+}
+
+.oracle {
+  margin: 6px 0 0;
+  white-space: pre-line;
+}
+
+.prices {
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+}
+
+@media (max-width: 600px) {
+  .preview {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .preview-img {
+    max-width: 240px;
+    justify-self: center;
+  }
+}
+
+/* Shortlist */
+.shortlist {
+  margin-top: 10px;
+}
+
+.shortlist h2 {
+  margin: 0;
+}
+
+.shortlist .pills {
+  margin-top: 8px;
+}
+
+.pill.picked {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  cursor: default;
+  padding: 3px 6px 3px 11px;
+}
+
+.pill.picked a {
+  color: inherit;
+  text-decoration: none;
+}
+
+.pill.picked a:hover {
+  text-decoration: underline;
+}
+
+.pill .x {
+  border: none;
+  background: none;
+  padding: 0 4px;
+  color: var(--muted);
+  font-size: 0.75rem;
+}
+
+/* Cards per part */
+.parts {
+  width: 100%;
+  margin-top: 6px;
+  border-collapse: collapse;
+  font-size: 0.85rem;
+}
+
+.parts td {
+  padding: 4px 0;
+  border-bottom: 1px solid var(--border);
+  vertical-align: top;
+}
+
+.parts .count {
+  text-align: right;
+  font-weight: 600;
+  white-space: nowrap;
+  padding-left: 12px;
+  font-variant-numeric: tabular-nums;
+}
+
+.parts-op td {
+  color: var(--muted);
+  border-bottom: none;
+  padding-top: 8px;
+}
+
+.parts .snippet {
+  margin-top: 2px;
+}

@@ -1,4 +1,4 @@
-import { Component, inject, signal } from '@angular/core';
+import { Component, ElementRef, inject, signal, viewChild } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { BuilderStore } from '../builder.store';
 import { compileFilters } from '../query/compiler';
@@ -19,16 +19,23 @@ const RECENT_MAX = 10;
 @Component({
   selector: 'app-phrase-search',
   imports: [FormsModule],
+  host: { '(document:keydown)': 'onGlobalKey($event)' },
   template: `
     <form class="phrase" (ngSubmit)="run()">
+      <span class="phrase-field">
       <input
+        #box
         class="phrase-input"
         name="phrase"
         autocomplete="off"
         placeholder="e.g. card draw staples in esper"
         aria-label="Describe the cards you want"
         [(ngModel)]="phrase"
+        (keydown.escape)="onEscape(box)"
+        (keydown.arrowup)="onArrowUp($event)"
       />
+      <kbd class="kbd-hint" title="Press / to search from anywhere">/</kbd>
+      </span>
       <button type="submit" class="primary-btn" [disabled]="!phrase().trim()">Search</button>
     </form>
 
@@ -92,6 +99,32 @@ export class PhraseSearch {
   protected readonly recent = signal<string[]>(readRecent());
   /** The filters that came from the panel instead of the phrase, as query text. */
   protected readonly kept = signal('');
+
+  private readonly box = viewChild.required<ElementRef<HTMLInputElement>>('box');
+
+  /** "/" anywhere (outside a text field) jumps to the search box. */
+  protected onGlobalKey(e: KeyboardEvent): void {
+    if (e.key !== '/' || e.ctrlKey || e.metaKey || e.altKey) return;
+    const t = e.target as HTMLElement | null;
+    if (t && (t.isContentEditable || ['INPUT', 'TEXTAREA', 'SELECT'].includes(t.tagName))) return;
+    e.preventDefault();
+    this.box().nativeElement.focus();
+    this.box().nativeElement.select();
+  }
+
+  /** Esc clears the box; a second Esc leaves it. */
+  protected onEscape(box: HTMLInputElement): void {
+    if (this.phrase()) this.phrase.set('');
+    else box.blur();
+  }
+
+  /** ↑ in an empty box brings back the last search. */
+  protected onArrowUp(e: Event): void {
+    const last = this.recent()[0];
+    if (this.phrase() || !last) return;
+    e.preventDefault();
+    this.phrase.set(last);
+  }
 
   protected run(): void {
     const text = this.phrase().trim();

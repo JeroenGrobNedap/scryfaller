@@ -2,14 +2,16 @@ import { Component, inject, signal } from '@angular/core';
 import { BuilderStore } from './builder.store';
 import { FiltersPanel } from './components/filters-panel';
 import { NodeEditor } from './components/node-editor';
+import { PartCounts } from './components/part-counts';
 import { PhraseSearch } from './components/phrase-search';
 import { ResultsPanel } from './components/results';
 import { SavedPanel } from './components/saved-panel';
+import { Shortlist } from './components/shortlist';
 import { scryfallUrl } from './query/compiler';
 
 @Component({
   selector: 'app-root',
-  imports: [FiltersPanel, NodeEditor, PhraseSearch, ResultsPanel, SavedPanel],
+  imports: [FiltersPanel, NodeEditor, PartCounts, PhraseSearch, ResultsPanel, SavedPanel, Shortlist],
   templateUrl: './app.html',
   styleUrl: './app.css',
 })

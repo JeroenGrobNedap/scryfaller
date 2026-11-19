@@ -40,6 +40,12 @@ Under the query you see the matching cards straight from the [Scryfall API](http
 (the first page, up to 175 cards). Scryfall warnings, such as a term it ignored, are shown above the cards.
 The by-hand card text builder is folded away under "Edit card text by hand".
 
+- Click a card for a preview with its rules text, prices and links to Scryfall and EDHREC (← → to browse, Esc to close).
+- **+** on a card adds it to your shortlist; "Copy for Moxfield / Archidekt" copies it as `1 Card Name` lines.
+- Switch between **Images** and a compact **List** (name, mana cost, type, price).
+- "What this searches for · cards per part" shows how many cards each part of the query matches on its own.
+- Keys: `/` jumps to the search box, `Esc` clears it, `↑` in an empty box brings back your last search.
+
 ## Run it
 
 The app is frontend-only: saved queries live in your browser (with Export/Import for backups).
@@ -64,6 +70,8 @@ The NestJS app in `api/` is not used right now; it's kept for a future Scryfall 
 | `web/src/app/query/templates.ts` | Ready-made starting queries. |
 | `web/src/app/components/` | UI: phrase search, filters, ability editor, groups, saved queries. |
 | `web/src/app/saved-queries.service.ts` | Saved queries in localStorage, plus JSON export/import. |
+| `web/src/app/scryfall.service.ts` | The only code that calls the Scryfall API (spaced out, cached per query). |
+| `web/src/app/shortlist.service.ts` | Your picked cards, in localStorage. |
 | `api/` | NestJS app (currently unused). |
 
 ## Scryfall regex gotchas
