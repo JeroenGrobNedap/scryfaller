@@ -1,6 +1,6 @@
 import { Injectable, computed, signal } from '@angular/core';
 import { compileNode, compileQuery, explainNode } from './query/compiler';
-import { BuilderState, Group, QueryNode, emptyState } from './query/model';
+import { BuilderState, Group, QueryNode, defaultFilters, emptyState } from './query/model';
 
 const DRAFT_KEY = 'scryfaller.draft';
 
@@ -29,7 +29,7 @@ export class BuilderStore {
   }
 
   load(state: BuilderState): void {
-    this.state.set(structuredClone(state));
+    this.state.set(withDefaults(structuredClone(state)));
     this.touch();
   }
 
@@ -61,10 +61,15 @@ export class BuilderStore {
   }
 }
 
+/** States saved by older versions lack newer filter fields; fill those in. */
+function withDefaults(state: BuilderState): BuilderState {
+  return { ...state, filters: { ...defaultFilters(), ...state.filters } };
+}
+
 function loadDraft(): BuilderState | null {
   try {
     const raw = localStorage.getItem(DRAFT_KEY);
-    return raw ? (JSON.parse(raw) as BuilderState) : null;
+    return raw ? withDefaults(JSON.parse(raw) as BuilderState) : null;
   } catch {
     return null;
   }

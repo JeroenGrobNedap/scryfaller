@@ -26,9 +26,10 @@ export function scryfallUrl(query: string): string {
   return `https://scryfall.com/search?q=${encodeURIComponent(query)}`;
 }
 
-/** The tree goes after the type/format/color filters but before rarity and sort order. */
+/** The tree goes after the type/format/color filters but before rarity, price and sort order. */
 function filterInsertIndex(parts: string[]): number {
-  const idx = parts.findIndex((p) => p.startsWith('r:') || p.startsWith('(r:') || p.startsWith('order:'));
+  const after = ['r:', '(r:', 'usd', 'eur', 'order:'];
+  const idx = parts.findIndex((p) => after.some((prefix) => p.startsWith(prefix)));
   return idx === -1 ? parts.length : idx;
 }
 
@@ -50,7 +51,10 @@ export function compileFilters(f: Filters): string[] {
     if (f.mvMin !== null) parts.push(`mv>=${f.mvMin}`);
     if (f.mvMax !== null) parts.push(`mv<=${f.mvMax}`);
   }
+  if (f.gameChangers === 'exclude') parts.push('-is:gamechanger');
+  if (f.gameChangers === 'only') parts.push('is:gamechanger');
   if (f.rarities.length > 0) parts.push(orList(f.rarities.map((r) => `r:${r}`)));
+  if (f.priceMax != null) parts.push(`${f.currency ?? 'usd'}<=${f.priceMax}`);
   if (f.order) parts.push(`order:${f.order}`);
   return parts;
 }

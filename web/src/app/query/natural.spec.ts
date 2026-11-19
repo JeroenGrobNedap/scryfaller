@@ -1,5 +1,5 @@
 import { compileQuery, explainNode } from './compiler';
-import { normalize, parsePhrase } from './natural';
+import { SUGGESTION_WORDS, normalize, parsePhrase, suggest } from './natural';
 
 const query = (phrase: string) => compileQuery(parsePhrase(phrase).state);
 
@@ -118,5 +118,66 @@ describe('parsePhrase — staples', () => {
 
   it('card draw payoffs still mean "whenever you draw"', () => {
     expect(query('card draw payoffs in blue')).toBe('id<=u f:commander o:/whenever[^,]*draw/');
+  });
+});
+
+describe('parsePhrase — price and Game Changers', () => {
+  it('reads dollar amounts as a price cap, not mana value', () => {
+    expect(query('removal staples in gruul under $2')).toMatch(/^id<=rg f:commander .* usd<=2 order:edhrec$/);
+    expect(query('ramp in green 1.50 dollars or less')).toContain('usd<=1.5');
+    expect(query('counterspells under 3 euros')).toContain('eur<=3');
+  });
+
+  it('keeps "under 4" as mana value', () => {
+    expect(query('counterspells under 4')).toContain('mv<=3');
+  });
+
+  it('budget means at most $5', () => {
+    expect(query('budget tutors in black')).toContain('usd<=5');
+  });
+
+  it('can exclude or require Game Changers', () => {
+    expect(query('protection in white without game changers')).toContain('-is:gamechanger');
+    expect(query('game changers in blue')).toBe('id<=u f:commander is:gamechanger');
+  });
+});
+
+describe('parsePhrase — new roles', () => {
+  const cases: [string, string][] = [
+    ['protection in white', 'protection from'],
+    ['mana fixing in jund', 'mana of any'],
+    ['finishers in green', 'win the game'],
+    ['extra turns in blue', 'extra turn'],
+    ['evasion in dimir', "can't be blocked"],
+    ['stax pieces in white', 'cost [^.]*more'],
+    ['free spells in blue', "rather than pay this spell's mana cost"],
+  ];
+  for (const [phrase, fragment] of cases) {
+    it(phrase, () => {
+      const r = parsePhrase(phrase);
+      expect(compileQuery(r.state)).toContain(fragment);
+      expect(r.warnings).toEqual([]);
+    });
+  }
+});
+
+describe('typo suggestions', () => {
+  it('suggests the closest known word', () => {
+    const r = parsePhrase('survail payoffs in azorious');
+    expect(r.suggestions).toEqual([
+      { word: 'survail', suggestion: 'surveil' },
+      { word: 'azorious', suggestion: 'azorius' },
+    ]);
+  });
+
+  it('does not suggest for words that are far off', () => {
+    expect(suggest('banana')).toBeNull();
+    expect(suggest('xyz')).toBeNull();
+  });
+
+  it('only suggests words the parser understands', () => {
+    for (const word of SUGGESTION_WORDS) {
+      expect(parsePhrase(word).recognized.length).withContext(word).toBeGreaterThan(0);
+    }
   });
 });

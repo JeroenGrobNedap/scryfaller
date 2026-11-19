@@ -80,6 +80,26 @@ const COLORS: { id: Color; label: string }[] = [
       </div>
 
       <div class="slot">
+        <span class="slot-label">Max price</span>
+        <div class="row">
+          <input type="number" min="0" step="0.5" class="num" placeholder="any" [(ngModel)]="f.priceMax" (ngModelChange)="store.touch()" aria-label="Maximum price" />
+          <select [(ngModel)]="f.currency" (ngModelChange)="store.touch()" aria-label="Currency">
+            <option value="usd">USD</option>
+            <option value="eur">EUR</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="slot">
+        <span class="slot-label">Game Changers</span>
+        <select [(ngModel)]="f.gameChangers" (ngModelChange)="store.touch()" aria-label="Game Changers">
+          <option value="">Don't care</option>
+          <option value="exclude">None (brackets 1–2)</option>
+          <option value="only">Only Game Changers</option>
+        </select>
+      </div>
+
+      <div class="slot">
         <span class="slot-label">Rarity (any of)</span>
         <app-chips [options]="rarities" [selected]="f.rarities" />
       </div>

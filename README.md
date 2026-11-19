@@ -21,6 +21,14 @@ The box at the top understands short phrases (rule-based, no AI) and fills in th
 "Staples" (or "best", "popular", "most played") sorts by EDHREC popularity (`order:edhrec`), so the most-played
 cards come first. Scryfall can sort by popularity but not filter on it, so the long tail is still there further down.
 
+More it understands:
+
+- **Price:** `under $2`, `3 euros or less`, `budget` (≤ $5). Plain `under 4` still means mana value.
+- **Game Changers:** `without game changers` / `bracket 2` / `casual` excludes them; `game changers in blue` shows only them.
+- **Roles:** protection, mana fixing, finishers / win cons, extra turns, evasion, stax / tax, free (pitch) spells,
+  on top of removal, wipes, bounce, counterspells, ramp, tutors, recursion, payoffs, enablers and outlets.
+- **Typos:** misspelled words get a clickable "did you mean …?". Your last 10 searches are listed under the box.
+
 It shows what it understood and which words it didn't. To teach it new words or recipes, edit
 `web/src/app/query/natural.ts` (word lists at the top, recipes at the bottom).
 

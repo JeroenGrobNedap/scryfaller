@@ -18,6 +18,11 @@ export interface Filters {
   mvMin: number | null;
   mvMax: number | null;
   rarities: string[];
+  /** Maximum price (inclusive) in `currency`. Null = any price. */
+  priceMax: number | null;
+  currency: 'usd' | 'eur';
+  /** Commander "Game Changers" list: '' = don't care, 'exclude' = none (brackets 1–2), 'only' = just those. */
+  gameChangers: '' | 'exclude' | 'only';
   /** Sort order appended as `order:...`. Empty = Scryfall default. */
   order: string;
 }
@@ -97,6 +102,9 @@ export function defaultFilters(): Filters {
     mvMin: null,
     mvMax: null,
     rarities: [],
+    priceMax: null,
+    currency: 'usd',
+    gameChangers: '',
     order: '',
   };
 }

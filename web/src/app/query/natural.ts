@@ -29,7 +29,14 @@ export type Role =
   | 'counterspell'
   | 'ramp'
   | 'tutor'
-  | 'recursion';
+  | 'recursion'
+  | 'protection'
+  | 'fixing'
+  | 'finisher'
+  | 'extra-turn'
+  | 'evasion'
+  | 'stax'
+  | 'free';
 
 /** Roles where card types mean "what it hits / finds" instead of "what the card is". */
 const ROLE_EXAMPLE: Partial<Record<Role, string>> = {
@@ -55,6 +62,9 @@ interface Ctx {
   mvMax: number | null;
   /** "staples": sort by EDHREC popularity so the most-played cards come first. */
   staples: boolean;
+  priceMax: number | null;
+  currency: 'usd' | 'eur';
+  gameChangers: '' | 'exclude' | 'only';
 }
 
 interface Entry {
@@ -167,6 +177,37 @@ const ROLE_WORDS: Entry[] = [
     meaning: 'recursion (from graveyard)',
     apply: role('recursion'),
   },
+  {
+    pattern: 'protection|protect(ion|ing|ive)? effects?|hexproof|indestructible|shroud|phasing',
+    meaning: 'protection (hexproof / indestructible / phasing)',
+    apply: role('protection'),
+  },
+  {
+    pattern: '(mana |colou?r )?fixing|fixers?',
+    meaning: 'mana fixing (any color)',
+    apply: role('fixing'),
+  },
+  {
+    pattern: 'finishers?|win ?cons?|win conditions?|closers?|overruns?',
+    meaning: 'finisher (win the game / team pump)',
+    apply: role('finisher'),
+  },
+  { pattern: 'extra turns?|time walks?', meaning: 'extra turns', apply: role('extra-turn') },
+  {
+    pattern: 'evasion|evasive|unblockable|cant be blocked',
+    meaning: "evasion (can't be blocked, flying, trample…)",
+    apply: role('evasion'),
+  },
+  {
+    pattern: 'stax|tax(es|ing)?|hatebears?|prison',
+    meaning: 'stax / tax effects',
+    apply: role('stax'),
+  },
+  {
+    pattern: 'free spells?|free interaction|pitch spells?|free',
+    meaning: 'free spells (alternative cost)',
+    apply: role('free'),
+  },
 ];
 
 const mech =
@@ -249,7 +290,40 @@ const TYPE_WORDS: Entry[] = [
   },
 ];
 
+const MONEY = '(\\d+(?:\\.\\d+)?) ?(dollars?|bucks|usd|euros?|eur)';
+const setPrice = (amount: string, unit: string) => (c: Ctx) => {
+  c.priceMax = Number(amount);
+  c.currency = /^eu/.test(unit) ? 'eur' : 'usd';
+};
+const money = (amount: string, unit: string) => (/^eu/.test(unit) ? `€${amount}` : `$${amount}`);
+
 const OTHER_WORDS: Entry[] = [
+  {
+    pattern: `(under|below|less than|at most|up to|max|cheaper than) ${MONEY}`,
+    meaning: (m) => `price ≤ ${money(m[2], m[3])}`,
+    apply: (c, m) => setPrice(m[2], m[3])(c),
+  },
+  {
+    pattern: `${MONEY} or (less|under|cheaper|lower)`,
+    meaning: (m) => `price ≤ ${money(m[1], m[2])}`,
+    apply: (c, m) => setPrice(m[1], m[2])(c),
+  },
+  {
+    pattern: 'budget|inexpensive|affordable',
+    meaning: 'budget (price ≤ $5)',
+    apply: setPrice('5', 'usd'),
+  },
+  {
+    pattern:
+      '(no|without|zero|exclude|excluding|not|non) game ?changers?|no gcs?|bracket [12]|low power|casual',
+    meaning: 'no Game Changers (brackets 1–2)',
+    apply: (c) => (c.gameChangers = 'exclude'),
+  },
+  {
+    pattern: 'game ?changers?',
+    meaning: 'only Game Changers',
+    apply: (c) => (c.gameChangers = 'only'),
+  },
   {
     // Scryfall can't filter on popularity, but it can sort by it: the staples come first.
     pattern: 'staples?|popular|most played|best|goto|go to|auto ?includes?',
@@ -313,6 +387,54 @@ const STOPWORDS = new Set(
   let lets s let's`.split(/\s+/),
 );
 
+/**
+ * Words offered as "did you mean …?" for typos. Every word here must be understood on its own
+ * (a test checks this), so clicking a suggestion always helps.
+ */
+export const SUGGESTION_WORDS = [
+  ...COLOR_GROUPS.map(([name]) => name),
+  ...'white blue black red green colorless'.split(' '),
+  ...`payoffs enablers repeatable engines outlets removal wipes wrath sweepers bounce counterspells ramp
+  tutors recursion reanimation protection hexproof indestructible fixing finishers wincons evasion
+  unblockable stax hatebears scry surveil sacrifice aristocrats tokens counters lifegain drain draw
+  discard mill dies enters attacks spellslinger landfall impulse steal theft untap damage artifacts
+  enchantments creatures planeswalkers lands instants sorceries battles permanents commanders
+  commander staples popular budget casual cheap`.split(/\s+/),
+];
+
+/** Damerau–Levenshtein distance (with adjacent swaps), for typo suggestions. */
+function editDistance(a: string, b: string): number {
+  const d: number[][] = Array.from({ length: a.length + 1 }, (_, i) =>
+    Array.from({ length: b.length + 1 }, (_, j) => (i === 0 ? j : j === 0 ? i : 0)),
+  );
+  for (let i = 1; i <= a.length; i++) {
+    for (let j = 1; j <= b.length; j++) {
+      const cost = a[i - 1] === b[j - 1] ? 0 : 1;
+      d[i][j] = Math.min(d[i - 1][j] + 1, d[i][j - 1] + 1, d[i - 1][j - 1] + cost);
+      if (i > 1 && j > 1 && a[i - 1] === b[j - 2] && a[i - 2] === b[j - 1])
+        d[i][j] = Math.min(d[i][j], d[i - 2][j - 2] + 1);
+    }
+  }
+  return d[a.length][b.length];
+}
+
+/** The closest known word, if it is close enough to be a likely typo. */
+export function suggest(word: string): string | null {
+  if (word.length < 3 || /\d/.test(word)) return null;
+  const allowed = word.length <= 5 ? 1 : 2;
+  let best: string | null = null;
+  let bestDistance = Infinity;
+  for (const candidate of SUGGESTION_WORDS) {
+    if (Math.abs(candidate.length - word.length) > allowed) continue;
+    const dist = editDistance(word, candidate);
+    if (dist <= allowed && dist < bestDistance) {
+      best = candidate;
+      bestDistance = dist;
+    }
+  }
+  return best;
+}
+
 // ---------------------------------------------------------------------------------------------
 // Parsing
 
@@ -326,6 +448,8 @@ export interface ParseResult {
   recognized: Recognized[];
   /** Words that were not understood and not filler. */
   unknown: string[];
+  /** Likely typos among the unknown words, with the word we think was meant. */
+  suggestions: { word: string; suggestion: string }[];
   /** Problems worth telling the user about (e.g. "payoffs" without a mechanic). */
   warnings: string[];
 }
@@ -335,8 +459,12 @@ export function normalize(input: string): string {
     .toLowerCase()
     .replace(/and\/or/g, ' and ')
     .replace(/[’']/g, '')
+    .replace(/\$\s?(\d+(?:[.,]\d+)?)/g, ' $1 dollars ')
+    .replace(/€\s?(\d+(?:[.,]\d+)?)/g, ' $1 euros ')
+    .replace(/(\d),(\d)/g, '$1.$2')
     .replace(/(?<!\+1)\/(?!\+1)/g, ' ')
-    .replace(/[^a-z0-9+/ ]/g, ' ')
+    .replace(/[^a-z0-9+/. ]/g, ' ')
+    .replace(/(?<!\d)\.|\.(?!\d)/g, ' ')
     .replace(/\s+/g, ' ')
     .trim();
 }
@@ -378,6 +506,9 @@ export function parsePhrase(input: string): ParseResult {
     mvMin: null,
     mvMax: null,
     staples: false,
+    priceMax: null,
+    currency: 'usd',
+    gameChangers: '',
   };
   const recognized: Recognized[] = [];
   for (const h of accepted) {
@@ -393,7 +524,12 @@ export function parsePhrase(input: string): ParseResult {
     if (!covered && !STOPWORDS.has(word[0]) && !/^\d+$/.test(word[0])) unknown.push(word[0]);
   }
 
-  return { ...buildState(ctx), recognized, unknown };
+  const suggestions = unknown.flatMap((word) => {
+    const suggestion = suggest(word);
+    return suggestion ? [{ word, suggestion }] : [];
+  });
+
+  return { ...buildState(ctx), recognized, unknown, suggestions };
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -418,6 +554,9 @@ function buildState(ctx: Ctx): { state: BuilderState; warnings: string[] } {
   filters.mvMin = ctx.mvMin;
   filters.mvMax = ctx.mvMax;
   if (ctx.staples) filters.order = 'edhrec';
+  filters.priceMax = ctx.priceMax;
+  filters.currency = ctx.currency;
+  filters.gameChangers = ctx.gameChangers;
 
   const roles = [...ctx.roles];
   const mechanics = [...ctx.mechanics];
@@ -490,6 +629,53 @@ function buildState(ctx: Ctx): { state: BuilderState; warnings: string[] } {
         break;
       case 'recursion':
         nodes.push(recursionNode(targets));
+        break;
+      case 'protection':
+        nodes.push(
+          newGroup('or', [
+            newRaw(
+              'o:/(gains?|have|has) [^.]*(hexproof|indestructible|shroud|protection from)/',
+              'Gives hexproof / indestructible / protection',
+            ),
+            newRaw('o:/phases? out/', 'Phases things out'),
+          ]),
+        );
+        break;
+      case 'fixing':
+        nodes.push(newRaw('o:/mana of any (one )?(color|type)/', 'Makes mana of any color'));
+        break;
+      case 'finisher':
+        nodes.push(
+          newGroup('or', [
+            newRaw('o:/win the game/', 'Wins the game'),
+            newRaw('o:/creatures you control get \\+[0-9x]/', 'Pumps your whole team (overrun)'),
+          ]),
+        );
+        break;
+      case 'extra-turn':
+        nodes.push(newRaw('o:/takes? an extra turn/', 'Takes an extra turn'));
+        break;
+      case 'evasion':
+        nodes.push(
+          newRaw(
+            "o:/(can't be blocked|gains? (flying|trample|menace|shadow|fear|intimidate))/",
+            "Can't be blocked / gives flying, trample, menace…",
+          ),
+        );
+        break;
+      case 'stax':
+        nodes.push(
+          newGroup('or', [
+            newRaw('o:/(spells|abilities) [^.]*cost [^.]*more/', 'Makes spells or abilities cost more'),
+            newRaw("o:/(permanents|creatures|lands|artifacts) [^.]*don't untap during/", "Things don't untap"),
+            newRaw("o:/can't cast more than one spell/", 'Limits spells per turn'),
+          ]),
+        );
+        break;
+      case 'free':
+        nodes.push(
+          newRaw("o:/rather than pay this spell's mana cost/", 'Can be cast without paying its mana cost'),
+        );
         break;
     }
   }

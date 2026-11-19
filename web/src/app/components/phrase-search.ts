@@ -12,8 +12,12 @@ const EXAMPLES = [
   'selesnya commanders that care about tokens',
   'sultai mana dorks',
   'card draw staples in esper',
-  'removal staples in gruul',
+  'removal staples in gruul under $2',
+  'protection in white without game changers',
 ];
+
+const RECENT_KEY = 'scryfaller.recent';
+const RECENT_MAX = 10;
 
 /** Type what you want, press Enter: fills the builder (and so the query) from the phrase. */
 @Component({
@@ -46,6 +50,13 @@ const EXAMPLES = [
             <span class="tag unknown">{{ word }}</span>
           }
         }
+        @for (s of r.suggestions; track $index) {
+          <span class="warn">
+            Did you mean
+            <button type="button" class="link" (click)="fix(s.word, s.suggestion)">{{ s.suggestion }}</button>
+            instead of “{{ s.word }}”?
+          </span>
+        }
         @for (w of r.warnings; track $index) {
           <span class="warn">{{ w }}</span>
         }
@@ -57,8 +68,18 @@ const EXAMPLES = [
       <div class="feedback">
         <span class="muted">Try:</span>
         @for (ex of examples; track ex) {
-          <button type="button" class="link" (click)="phrase.set(ex); run()">{{ ex }}</button>
+          <button type="button" class="link" (click)="use(ex)">{{ ex }}</button>
         }
+      </div>
+    }
+
+    @if (recent().length) {
+      <div class="feedback">
+        <span class="muted">Recent:</span>
+        @for (r of recent(); track r) {
+          <button type="button" class="link" (click)="use(r)">{{ r }}</button>
+        }
+        <button type="button" class="link muted" (click)="clearRecent()">clear</button>
       </div>
     }
   `,
@@ -68,12 +89,61 @@ export class PhraseSearch {
   protected readonly phrase = signal('');
   protected readonly result = signal<ParseResult | null>(null);
   protected readonly examples = EXAMPLES;
+  protected readonly recent = signal<string[]>(readRecent());
 
   protected run(): void {
     const text = this.phrase().trim();
     if (!text) return;
     const r = parsePhrase(text);
     this.result.set(r);
-    if (r.recognized.length) this.store.load(r.state);
+    if (r.recognized.length) {
+      this.store.load(r.state);
+      this.remember(text);
+    }
+  }
+
+  protected use(text: string): void {
+    this.phrase.set(text);
+    this.run();
+  }
+
+  /** Replaces a misspelled word with the suggestion and runs the search again. */
+  protected fix(word: string, suggestion: string): void {
+    const escaped = word.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const misspelled = this.phrase().trim();
+    // The corrected phrase takes the misspelled one's place in Recent.
+    this.recent.update((list) => list.filter((r) => r !== misspelled));
+    this.use(this.phrase().replace(new RegExp(`\\b${escaped}\\b`, 'i'), suggestion));
+  }
+
+  protected clearRecent(): void {
+    this.recent.set([]);
+    writeRecent([]);
+  }
+
+  private remember(text: string): void {
+    const list = [text, ...this.recent().filter((r) => r.toLowerCase() !== text.toLowerCase())].slice(
+      0,
+      RECENT_MAX,
+    );
+    this.recent.set(list);
+    writeRecent(list);
+  }
+}
+
+function readRecent(): string[] {
+  try {
+    const parsed: unknown = JSON.parse(localStorage.getItem(RECENT_KEY) ?? '[]');
+    return Array.isArray(parsed) ? parsed.filter((x): x is string => typeof x === 'string') : [];
+  } catch {
+    return [];
+  }
+}
+
+function writeRecent(list: string[]): void {
+  try {
+    localStorage.setItem(RECENT_KEY, JSON.stringify(list));
+  } catch {
+    // Storage unavailable: recent searches just aren't kept.
   }
 }
