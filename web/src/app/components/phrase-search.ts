@@ -7,14 +7,8 @@ import { DECK_FILTERS, ParseResult, applyPhrase, parsePhrase } from '../query/na
 
 const EXAMPLES = [
   'surveil payoffs in azorius',
-  'artifact and/or enchantment removal in black',
-  'sacrifice outlets in boros',
-  'repeatable scry or surveil in esper',
-  'cheap creature removal in rakdos',
-  'selesnya commanders that care about tokens',
-  'sultai mana dorks',
-  'card draw staples in esper',
   'removal staples in gruul under $2',
+  'sacrifice outlets in boros',
   'protection in white without game changers',
 ];
 
@@ -31,11 +25,11 @@ const RECENT_MAX = 10;
         class="phrase-input"
         name="phrase"
         autocomplete="off"
-        placeholder="Type what you want, e.g. “surveil payoffs in azorius”, then press Enter"
+        placeholder="e.g. card draw staples in esper"
         aria-label="Describe the cards you want"
         [(ngModel)]="phrase"
       />
-      <button type="submit" class="primary-btn" [disabled]="!phrase().trim()">Build query</button>
+      <button type="submit" class="primary-btn" [disabled]="!phrase().trim()">Search</button>
     </form>
 
     @if (result(); as r) {
@@ -70,7 +64,7 @@ const RECENT_MAX = 10;
           <span class="warn">I didn't recognize anything in that, so the builder was left as it was.</span>
         }
       </div>
-    } @else {
+    } @else if (!recent().length) {
       <div class="feedback">
         <span class="muted">Try:</span>
         @for (ex of examples; track ex) {

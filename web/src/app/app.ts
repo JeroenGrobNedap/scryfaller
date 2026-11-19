@@ -3,12 +3,13 @@ import { BuilderStore } from './builder.store';
 import { FiltersPanel } from './components/filters-panel';
 import { NodeEditor } from './components/node-editor';
 import { PhraseSearch } from './components/phrase-search';
+import { ResultsPanel } from './components/results';
 import { SavedPanel } from './components/saved-panel';
 import { scryfallUrl } from './query/compiler';
 
 @Component({
   selector: 'app-root',
-  imports: [FiltersPanel, NodeEditor, PhraseSearch, SavedPanel],
+  imports: [FiltersPanel, NodeEditor, PhraseSearch, ResultsPanel, SavedPanel],
   templateUrl: './app.html',
   styleUrl: './app.css',
 })

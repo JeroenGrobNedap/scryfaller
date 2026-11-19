@@ -34,6 +34,12 @@ a phrase only changes the ones it mentions, and shows which ones it kept.
 It shows what it understood and which words it didn't. To teach it new words or recipes, edit
 `web/src/app/query/natural.ts` (word lists at the top, recipes at the bottom).
 
+## Live results
+
+Under the query you see the matching cards straight from the [Scryfall API](https://scryfall.com/docs/api)
+(the first page, up to 175 cards). Scryfall warnings, such as a term it ignored, are shown above the cards.
+The by-hand card text builder is folded away under "Edit card text by hand".
+
 ## Run it
 
 The app is frontend-only: saved queries live in your browser (with Export/Import for backups).

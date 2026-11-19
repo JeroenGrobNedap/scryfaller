@@ -1,6 +1,6 @@
 :host {
   display: block;
-  max-width: 1500px;
+  max-width: 960px;
   margin: 0 auto;
   padding: 0 16px 48px;
 }
@@ -8,55 +8,103 @@
 .topbar {
   display: flex;
   align-items: baseline;
-  gap: 12px;
-  padding: 16px 0 8px;
+  gap: 10px;
+  padding: 18px 0 10px;
 }
 
 .topbar h1 {
   margin: 0;
-  font-size: 1.4rem;
+  font-size: 1.25rem;
+  letter-spacing: -0.01em;
+}
+
+.tagline {
+  color: var(--muted);
+  font-size: 0.85rem;
+}
+
+@media (max-width: 560px) {
+  .tagline {
+    display: none;
+  }
+}
+
+.filters-card {
+  margin-top: 10px;
 }
 
 .output {
   position: sticky;
-  top: 0;
+  top: 8px;
   z-index: 10;
-  background: var(--bg);
-  border-bottom: 1px solid var(--border);
-  padding: 12px 0;
-  display: grid;
+  margin-top: 10px;
+  box-shadow: 0 6px 18px -12px rgb(0 0 0 / 0.35);
+}
+
+.query-row {
+  display: flex;
   gap: 8px;
+  align-items: flex-start;
 }
 
 .query {
-  display: block;
-  font-size: 0.95rem;
-  padding: 10px 12px;
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: 8px;
+  flex: 1;
+  min-width: 0;
+  font-size: 0.9rem;
+  padding: 7px 10px;
+  background: var(--surface-2);
+  border-radius: 6px;
   overflow-wrap: anywhere;
   user-select: all;
+  max-height: 7.5em;
+  overflow-y: auto;
+}
+
+.query-actions {
+  display: flex;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+@media (max-width: 560px) {
+  /* On a phone a pinned query would eat a third of the screen. */
+  .output {
+    position: static;
+  }
+
+  .query-row {
+    flex-direction: column;
+    align-items: stretch;
+  }
 }
 
 .explain {
-  margin: 0;
+  margin: 6px 0 0;
   padding-left: 18px;
   color: var(--muted);
   font-size: 0.85rem;
   white-space: pre-wrap;
 }
 
-.layout {
-  display: grid;
-  grid-template-columns: minmax(240px, 300px) minmax(0, 1fr) minmax(220px, 300px);
-  gap: 16px;
-  margin-top: 16px;
-  align-items: start;
+.advanced[open] {
+  max-height: 60vh;
+  overflow-y: auto;
 }
 
-@media (max-width: 1000px) {
-  .layout {
-    grid-template-columns: minmax(0, 1fr);
+.advanced app-node-editor {
+  display: block;
+  margin-top: 8px;
+}
+
+/* On narrow screens the cards come right after the query; templates and saved queries move below them. */
+@media (max-width: 700px) {
+  :host {
+    display: flex;
+    flex-direction: column;
+  }
+
+  app-saved-panel {
+    order: 1;
+    margin-top: 16px;
   }
 }
