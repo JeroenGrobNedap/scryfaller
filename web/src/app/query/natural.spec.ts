@@ -88,7 +88,7 @@ describe('parsePhrase — feedback', () => {
 
   it('normalizes punctuation and and/or', () => {
     expect(normalize("Artifact/Enchantment and/or +1/+1, mono-black!")).toBe(
-      'artifact enchantment and +1/+1 mono black',
+      'artifact enchantment and +1/+1 , mono black',
     );
   });
 });
@@ -256,5 +256,38 @@ describe('parsePhrase — steps like "every upkeep"', () => {
   it('still reads "combat damage" as the mechanic', () => {
     expect(query('combat damage payoffs')).toContain('combat damage');
     expect(query('combat damage payoffs')).not.toContain('at the beginning of');
+  });
+});
+
+describe('parsePhrase — "whenever X then Y"', () => {
+  const expected = (q: string) => expect(q).toMatch(/^f:commander o:\/\(whenever\|when \)\[\^,\]\*attack\[\^,\]\*,\[\^\.\]\*\(surveil\|scr\[yi\]\)\/$/);
+
+  for (const phrase of [
+    'whenever creature attacks then surveil/scry',
+    'whenever creature attacks then surveil.scry',
+    'whenever a creature attacks, i surveil or scry',
+    'if a creature attacks do surveil or scry',
+  ]) {
+    it(phrase, () => {
+      const r = parsePhrase(phrase);
+      expect(r.unknown).toEqual([]);
+      expected(compileQuery(r.state));
+    });
+  }
+
+  it('the creature in the trigger is not a card type filter', () => {
+    expect(parsePhrase('whenever a creature attacks then scry').state.filters.types).toEqual([]);
+  });
+
+  it('works the other way around: "scry whenever a creature attacks"', () => {
+    expect(query('scry whenever a creature attacks')).toBe('f:commander o:/(whenever|when )[^,]*attack[^,]*,[^.]*scr[yi]/');
+  });
+
+  it('without "then", the first mechanic is the trigger', () => {
+    expect(query('whenever a creature dies draw a card')).toContain('dies[^,]*,[^.]*draw');
+  });
+
+  it('keeps commas in lists working', () => {
+    expect(parsePhrase('enchantments, artifacts or creatures that make tokens every upkeep').unknown).toEqual([]);
   });
 });

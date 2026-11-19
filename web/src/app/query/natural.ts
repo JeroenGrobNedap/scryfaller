@@ -59,6 +59,10 @@ interface Ctx {
   types: Set<string>;
   /** Steps from "every upkeep", "at your end step", … (PHASES ids). */
   phases: Set<string>;
+  /** "whenever X then Y": X goes in `conditions`, Y in `effects` (instead of `mechanics`). */
+  ifThen: boolean;
+  conditions: Set<string>;
+  effects: Set<string>;
   format: string | null;
   isCommander: boolean;
   mvMin: number | null;
@@ -300,6 +304,15 @@ const PHASE_WORDS: Entry[] = [
   },
 ];
 
+/** "whenever …", "if …": what follows is the trigger condition (see `splitIfThen`). */
+const TRIGGER_WORD: Entry = {
+  pattern: 'whenever|when|each time|every time|if|after',
+  meaning: 'whenever … (trigger)',
+  apply: (c) => (c.ifThen = true),
+};
+/** Separates the trigger condition from what the card then does. */
+const THEN = /(?<![a-z])(and then|then|do|,)(?![a-z])/g;
+
 const type = (t: string) => (ctx: Ctx) => ctx.types.add(t);
 
 const TYPE_WORDS: Entry[] = [
@@ -403,6 +416,7 @@ const ALL_ENTRIES = [
   ...ROLE_WORDS,
   ...MECHANIC_WORDS,
   ...PHASE_WORDS,
+  TRIGGER_WORD,
   ...TYPE_WORDS,
   ...OTHER_WORDS,
 ];
@@ -413,7 +427,7 @@ const STOPWORDS = new Set(
   give show looking look colors color colours colour good list of are is do can please search get all any also
   like stuff things mono only both either triggers trigger abilities ability on from into by it them you your what
   would something there build building using use playing play run running other more great nice new ones one
-  let lets s let's every each
+  let lets s let's every each ,
   make makes making create creates creating produce produces producing put puts gets get`.split(/\s+/),
 );
 
@@ -486,6 +500,33 @@ export interface ParseResult {
   warnings: string[];
 }
 
+type Zone = 'condition' | 'effect';
+
+/**
+ * For "whenever X then Y" (or "Y whenever X"): which mechanic/type hits belong to the trigger
+ * condition and which to the effect. Without "then"/"," the first mechanic after "whenever"
+ * is the condition and later ones are effects. Null when there's no trigger word.
+ */
+function splitIfThen(text: string, hits: Hit[]): Map<Hit, Zone> | null {
+  const trigger = hits.find((h) => h.entry === TRIGGER_WORD);
+  if (!trigger) return null;
+  const sep = [...text.matchAll(THEN)].find((m) => m.index >= trigger.end);
+  const zones = new Map<Hit, Zone>();
+  let conditionTaken = false;
+  for (const h of hits) {
+    if (!MECHANIC_WORDS.includes(h.entry) && !TYPE_WORDS.includes(h.entry)) continue;
+    if (h.start < trigger.start) {
+      if (MECHANIC_WORDS.includes(h.entry)) zones.set(h, 'effect');
+    } else if (sep ? h.start < sep.index : !conditionTaken) {
+      zones.set(h, 'condition');
+      if (MECHANIC_WORDS.includes(h.entry)) conditionTaken = true;
+    } else if (MECHANIC_WORDS.includes(h.entry)) {
+      zones.set(h, 'effect');
+    }
+  }
+  return zones;
+}
+
 export function normalize(input: string): string {
   return input
     .toLowerCase()
@@ -495,7 +536,8 @@ export function normalize(input: string): string {
     .replace(/€\s?(\d+(?:[.,]\d+)?)/g, ' $1 euros ')
     .replace(/(\d),(\d)/g, '$1.$2')
     .replace(/(?<!\+1)\/(?!\+1)/g, ' ')
-    .replace(/[^a-z0-9+/. ]/g, ' ')
+    .replace(/[,:;]/g, ' , ')
+    .replace(/[^a-z0-9+/., ]/g, ' ')
     .replace(/(?<!\d)\.|\.(?!\d)/g, ' ')
     .replace(/\s+/g, ' ')
     .trim();
@@ -534,6 +576,9 @@ export function parsePhrase(input: string): ParseResult {
     mechanics: new Set(),
     types: new Set(),
     phases: new Set(),
+    ifThen: false,
+    conditions: new Set(),
+    effects: new Set(),
     format: null,
     isCommander: false,
     mvMin: null,
@@ -543,17 +588,34 @@ export function parsePhrase(input: string): ParseResult {
     currency: 'usd',
     gameChangers: '',
   };
+  const zones = splitIfThen(text, accepted);
   const recognized: Recognized[] = [];
   for (const h of accepted) {
-    h.entry.apply(ctx, h.match);
-    const meaning =
+    let meaning =
       typeof h.entry.meaning === 'function' ? h.entry.meaning(h.match) : h.entry.meaning;
+    const zone = zones?.get(h);
+    if (zone && MECHANIC_WORDS.includes(h.entry)) {
+      // Collect the mechanic ids this entry adds, then file them as condition or effect.
+      const scratch = { ...ctx, mechanics: new Set<string>() };
+      h.entry.apply(scratch, h.match);
+      const target = zone === 'condition' ? ctx.conditions : ctx.effects;
+      scratch.mechanics.forEach((m) => target.add(m));
+      meaning = `${zone === 'condition' ? 'when' : 'then'}: ${meaning}`;
+    } else if (zone === 'condition' && TYPE_WORDS.includes(h.entry)) {
+      // "whenever a creature attacks": the creature is part of the trigger, not the card's type.
+      meaning = `(part of the trigger)`;
+    } else {
+      h.entry.apply(ctx, h.match);
+    }
     recognized.push({ text: h.match[0], meaning });
   }
+  // Separator words ("then", ",") were used, so they're not "unknown".
+  const separators = zones ? [...text.matchAll(THEN)].map((m) => m.index) : [];
 
   const unknown: string[] = [];
   for (const word of text.matchAll(/\S+/g)) {
-    const covered = accepted.some((a) => word.index >= a.start && word.index < a.end);
+    const covered =
+      accepted.some((a) => word.index >= a.start && word.index < a.end) || separators.includes(word.index);
     if (!covered && !STOPWORDS.has(word[0]) && !/^\d+$/.test(word[0])) unknown.push(word[0]);
   }
 
@@ -641,6 +703,13 @@ function buildState(ctx: Ctx): {
 
   const nodes: QueryNode[] = [];
   const mechanicRoles = roles.filter((r) => MECHANIC_ROLES.includes(r));
+
+  if (ctx.ifThen && (ctx.conditions.size || ctx.effects.size)) {
+    const conditions = [...ctx.conditions].map((m) => PAYOFF_CONDITION[m] ?? m);
+    nodes.push(
+      newAbility({ triggers: ['whenever', 'when'], conditions, effects: [...ctx.effects] }),
+    );
+  }
 
   const phases = [...ctx.phases];
   // "…every upkeep": a trigger at the beginning of that step, doing the mechanic (if any).
