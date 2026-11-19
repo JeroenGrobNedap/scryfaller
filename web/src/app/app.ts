@@ -7,11 +7,12 @@ import { PhraseSearch } from './components/phrase-search';
 import { ResultsPanel } from './components/results';
 import { SavedPanel } from './components/saved-panel';
 import { Shortlist } from './components/shortlist';
+import { UpdateNotice } from './components/update-notice';
 import { scryfallUrl } from './query/compiler';
 
 @Component({
   selector: 'app-root',
-  imports: [FiltersPanel, NodeEditor, PartCounts, PhraseSearch, ResultsPanel, SavedPanel, Shortlist],
+  imports: [FiltersPanel, NodeEditor, PartCounts, PhraseSearch, ResultsPanel, SavedPanel, Shortlist, UpdateNotice],
   templateUrl: './app.html',
   styleUrl: './app.css',
 })

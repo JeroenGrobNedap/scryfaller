@@ -959,3 +959,27 @@ p.small {
 .parts .snippet {
   margin-top: 2px;
 }
+
+/* New version available */
+.update-notice {
+  position: fixed;
+  left: 50%;
+  bottom: 16px;
+  transform: translateX(-50%);
+  z-index: 60;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  max-width: calc(100vw - 32px);
+  padding: 8px 8px 8px 14px;
+  background: var(--surface);
+  border: 1px solid var(--accent);
+  border-radius: 10px;
+  box-shadow: 0 8px 24px -10px rgb(0 0 0 / 0.5);
+  font-size: 0.9rem;
+}
+
+.update-notice .primary-btn.small {
+  padding: 4px 12px;
+  border-radius: 6px;
+}
