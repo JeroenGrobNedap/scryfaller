@@ -374,3 +374,7 @@ button.link:hover {
 .warn {
   color: var(--danger);
 }
+
+.backup {
+  margin-top: 12px;
+}

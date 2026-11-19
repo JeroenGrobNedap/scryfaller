@@ -1,6 +1,4 @@
-import { HttpClient } from '@angular/common/http';
-import { Injectable, inject, signal } from '@angular/core';
-import { firstValueFrom } from 'rxjs';
+import { Injectable, signal } from '@angular/core';
 import { BuilderState } from './query/model';
 
 export interface SavedQuery {
@@ -11,38 +9,78 @@ export interface SavedQuery {
   createdAt: string;
 }
 
-/** Talks to the NestJS API (proxied at /api during development). */
+const STORAGE_KEY = 'scryfaller.saved';
+
+/**
+ * Saved queries live in this browser's localStorage, so the app needs no server.
+ * Export/import JSON is the backup path (storage is per browser and can be cleared).
+ */
 @Injectable({ providedIn: 'root' })
 export class SavedQueriesService {
-  private readonly http = inject(HttpClient);
-
-  readonly items = signal<SavedQuery[]>([]);
+  readonly items = signal<SavedQuery[]>(this.read());
   readonly error = signal<string | null>(null);
 
-  async refresh(): Promise<void> {
-    await this.run(async () => this.items.set(await firstValueFrom(this.http.get<SavedQuery[]>('/api/queries'))));
+  save(name: string, query: string, state: BuilderState): void {
+    const item: SavedQuery = {
+      id: crypto.randomUUID(),
+      name,
+      query,
+      state: structuredClone(state),
+      createdAt: new Date().toISOString(),
+    };
+    this.write([item, ...this.items()]);
   }
 
-  async save(name: string, query: string, state: BuilderState): Promise<void> {
-    await this.run(async () => {
-      await firstValueFrom(this.http.post<SavedQuery>('/api/queries', { name, query, state }));
-      await this.refresh();
-    });
+  remove(id: string): void {
+    this.write(this.items().filter((q) => q.id !== id));
   }
 
-  async remove(id: string): Promise<void> {
-    await this.run(async () => {
-      await firstValueFrom(this.http.delete(`/api/queries/${encodeURIComponent(id)}`));
-      this.items.update((list) => list.filter((q) => q.id !== id));
-    });
+  /** Downloads all saved queries as a JSON file. */
+  export(): void {
+    const blob = new Blob([JSON.stringify(this.items(), null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `scryfaller-queries-${new Date().toISOString().slice(0, 10)}.json`;
+    a.click();
+    URL.revokeObjectURL(url);
   }
 
-  private async run(fn: () => Promise<void>): Promise<void> {
+  /** Merges queries from an exported file; entries with an id we already have are skipped. */
+  async import(file: File): Promise<number> {
     try {
-      await fn();
+      const parsed: unknown = JSON.parse(await file.text());
+      if (!Array.isArray(parsed)) throw new Error('not a list');
+      const valid = parsed.filter(
+        (q): q is SavedQuery =>
+          !!q && typeof q.id === 'string' && typeof q.name === 'string' && typeof q.query === 'string' && !!q.state,
+      );
+      const known = new Set(this.items().map((q) => q.id));
+      const added = valid.filter((q) => !known.has(q.id));
+      this.write([...added, ...this.items()]);
+      return added.length;
+    } catch {
+      this.error.set("That file doesn't look like a Scryfaller export.");
+      return 0;
+    }
+  }
+
+  private read(): SavedQuery[] {
+    try {
+      const raw = localStorage.getItem(STORAGE_KEY);
+      return raw ? (JSON.parse(raw) as SavedQuery[]) : [];
+    } catch {
+      return [];
+    }
+  }
+
+  private write(items: SavedQuery[]): void {
+    this.items.set(items);
+    try {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(items));
       this.error.set(null);
     } catch {
-      this.error.set('Could not reach the API. Is it running? (cd api && npm run start:dev)');
+      this.error.set('This browser blocked storage, so saved queries will be lost on reload. Use Export to keep them.');
     }
   }
 }

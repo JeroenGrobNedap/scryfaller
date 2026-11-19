@@ -1,4 +1,4 @@
-import { Component, OnInit, inject, signal } from '@angular/core';
+import { Component, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { BuilderStore } from '../builder.store';
 import { TEMPLATES, Template } from '../query/templates';
@@ -42,17 +42,23 @@ import { SavedQueriesService, SavedQuery } from '../saved-queries.service';
         <li class="muted">Nothing saved yet.</li>
       }
     </ul>
+    <div class="row backup">
+      <button type="button" (click)="saved.export()" [disabled]="!saved.items().length">Export</button>
+      <button type="button" (click)="fileInput.click()">Import</button>
+      <input #fileInput type="file" accept="application/json,.json" hidden (change)="importFile(fileInput)" />
+      @if (importNote(); as note) {
+        <small class="muted">{{ note }}</small>
+      }
+    </div>
+    <small class="muted">Saved in this browser only. Export to back them up or move them.</small>
   `,
 })
-export class SavedPanel implements OnInit {
+export class SavedPanel {
   protected readonly store = inject(BuilderStore);
   protected readonly saved = inject(SavedQueriesService);
   protected readonly templates = TEMPLATES;
   protected readonly name = signal('');
-
-  ngOnInit(): void {
-    void this.saved.refresh();
-  }
+  protected readonly importNote = signal('');
 
   protected loadTemplate(t: Template): void {
     this.store.load(t.build());
@@ -62,10 +68,18 @@ export class SavedPanel implements OnInit {
     this.store.load(q.state);
   }
 
-  protected async save(): Promise<void> {
+  protected save(): void {
     const name = this.name().trim();
     if (!name) return;
-    await this.saved.save(name, this.store.query(), this.store.state());
+    this.saved.save(name, this.store.query(), this.store.state());
     if (!this.saved.error()) this.name.set('');
+  }
+
+  protected async importFile(input: HTMLInputElement): Promise<void> {
+    const file = input.files?.[0];
+    input.value = '';
+    if (!file) return;
+    const added = await this.saved.import(file);
+    this.importNote.set(this.saved.error() ? '' : `Imported ${added} new ${added === 1 ? 'query' : 'queries'}.`);
   }
 }

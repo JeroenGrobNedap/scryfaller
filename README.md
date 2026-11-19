@@ -22,12 +22,17 @@ It shows what it understood and which words it didn't. To teach it new words or 
 
 ## Run it
 
+The app is frontend-only: saved queries live in your browser (with Export/Import for backups).
+Every push to `main` that touches `web/` is tested, built and deployed to GitHub Pages by
+`.github/workflows/pages.yml`.
+
+To work on it locally:
+
 ```bash
-cd api && npm run start:dev    # NestJS on :3000 (saved queries)
-cd web && npm start            # Angular on :4200, proxies /api to :3000
+cd web && npm start            # http://localhost:4200
 ```
 
-Open http://localhost:4200.
+The NestJS app in `api/` is not used right now; it's kept for a future Scryfall integration.
 
 ## Layout
 
@@ -37,8 +42,9 @@ Open http://localhost:4200.
 | `web/src/app/query/compiler.ts` | Turns the builder model into a Scryfall query string (+ plain-English explanation). |
 | `web/src/app/query/compiler.spec.ts` | Tests for the compiler (`cd web && npx ng test`). |
 | `web/src/app/query/templates.ts` | Ready-made starting queries. |
-| `web/src/app/components/` | UI: filters, ability editor, groups, saved queries. |
-| `api/src/queries/` | Saved queries API, stored in `api/data/queries.json`. |
+| `web/src/app/components/` | UI: phrase search, filters, ability editor, groups, saved queries. |
+| `web/src/app/saved-queries.service.ts` | Saved queries in localStorage, plus JSON export/import. |
+| `api/` | NestJS app (currently unused). |
 
 ## Scryfall regex gotchas
 
