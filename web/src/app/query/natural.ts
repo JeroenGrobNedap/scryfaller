@@ -57,6 +57,8 @@ interface Ctx {
   roles: Set<Role>;
   mechanics: Set<string>;
   types: Set<string>;
+  /** Steps from "every upkeep", "at your end step", … (PHASES ids). */
+  phases: Set<string>;
   format: string | null;
   isCommander: boolean;
   mvMin: number | null;
@@ -224,7 +226,12 @@ const MECHANIC_WORDS: Entry[] = [
     meaning: 'sacrifice',
     apply: mech('sacrifice'),
   },
-  { pattern: 'tokens?|go wide', meaning: 'create tokens', apply: mech('create-token') },
+  {
+    // "token creature" / "creature tokens" is about the token, not the card's own type.
+    pattern: '(creature |treasure |food |clue |blood )?tokens?( creatures?)?|go wide',
+    meaning: 'create tokens',
+    apply: mech('create-token'),
+  },
   { pattern: '\\+1/\\+1 counters?|counters', meaning: '+1/+1 counters', apply: mech('counter-p1') },
   { pattern: 'life ?gain|gain(ing)? life', meaning: 'gain life', apply: mech('gain-life') },
   {
@@ -271,6 +278,26 @@ const MECHANIC_WORDS: Entry[] = [
   { pattern: 'untap(ping|s)?', meaning: 'untap', apply: mech('untap') },
   { pattern: 'combat damage', meaning: 'combat damage', apply: mech('combat-damage') },
   { pattern: 'damage', meaning: 'deals damage', apply: mech('deals-damage') },
+];
+
+const phase = (id: string) => (ctx: Ctx) => ctx.phases.add(id);
+/** "every upkeep", "each end step", "at the beginning of your upkeep", "during combat", … */
+const WHEN = '((at )?the )?(beginning of |start of )?(every |each |your |during |at |on )*(the )?';
+
+const PHASE_WORDS: Entry[] = [
+  { pattern: `${WHEN}upkeeps?`, meaning: 'at the beginning of upkeep', apply: phase('upkeep') },
+  {
+    pattern: `${WHEN}(end steps?|end of (the |each )?turn|eot)`,
+    meaning: 'at the beginning of the end step',
+    apply: phase('end-step'),
+  },
+  { pattern: `${WHEN}draw steps?`, meaning: 'at the beginning of the draw step', apply: phase('draw-step') },
+  { pattern: `${WHEN}combat`, meaning: 'at the beginning of combat', apply: phase('combat') },
+  {
+    pattern: `${WHEN}(pre ?combat |precombat |postcombat )?main phases?`,
+    meaning: 'at the beginning of the main phase',
+    apply: phase('main'),
+  },
 ];
 
 const type = (t: string) => (ctx: Ctx) => ctx.types.add(t);
@@ -375,6 +402,7 @@ const ALL_ENTRIES = [
   ...COLOR_WORDS,
   ...ROLE_WORDS,
   ...MECHANIC_WORDS,
+  ...PHASE_WORDS,
   ...TYPE_WORDS,
   ...OTHER_WORDS,
 ];
@@ -385,7 +413,8 @@ const STOPWORDS = new Set(
   give show looking look colors color colours colour good list of are is do can please search get all any also
   like stuff things mono only both either triggers trigger abilities ability on from into by it them you your what
   would something there build building using use playing play run running other more great nice new ones one
-  let lets s let's`.split(/\s+/),
+  let lets s let's every each
+  make makes making create creates creating produce produces producing put puts gets get`.split(/\s+/),
 );
 
 /**
@@ -504,6 +533,7 @@ export function parsePhrase(input: string): ParseResult {
     roles: new Set(),
     mechanics: new Set(),
     types: new Set(),
+    phases: new Set(),
     format: null,
     isCommander: false,
     mvMin: null,
@@ -612,13 +642,21 @@ function buildState(ctx: Ctx): {
   const nodes: QueryNode[] = [];
   const mechanicRoles = roles.filter((r) => MECHANIC_ROLES.includes(r));
 
-  if (mechanics.length > 0 && mechanicRoles.length === 0 && !targeted) {
+  const phases = [...ctx.phases];
+  // "…every upkeep": a trigger at the beginning of that step, doing the mechanic (if any).
+  // This is more specific than "repeatable" / "enabler", so it replaces those.
+  const phaseTrigger = phases.length > 0 && !roles.includes('payoff') && !roles.includes('outlet');
+  if (phaseTrigger) {
+    nodes.push(newAbility({ triggers: ['beginning'], phases, effects: mechanics }));
+  }
+
+  if (!phaseTrigger && mechanics.length > 0 && mechanicRoles.length === 0 && !targeted) {
     // Just a mechanic: cards that do it or mention it. "Card draw" has its own, tighter recipe.
     const rest = mechanics.filter((m) => m !== 'draw');
     if (rest.length < mechanics.length) nodes.push(drawNode());
     if (rest.length) nodes.push(newAbility({ abilityKinds: ['anywhere'], effects: rest }));
   }
-  if (mechanicRoles.length > 0 && mechanics.length === 0) {
+  if (mechanicRoles.length > 0 && mechanics.length === 0 && !phaseTrigger) {
     warnings.push(`Which mechanic? e.g. "${ROLE_EXAMPLE[mechanicRoles[0]]}".`);
   }
 
@@ -631,11 +669,11 @@ function buildState(ctx: Ctx): {
         }
         break;
       case 'enabler':
-        if (mechanics.length)
+        if (mechanics.length && !phaseTrigger)
           nodes.push(newAbility({ abilityKinds: ['anywhere'], effects: mechanics }));
         break;
       case 'repeatable':
-        if (mechanics.length) {
+        if (mechanics.length && !phaseTrigger) {
           nodes.push(
             newAbility({
               abilityKinds: ['triggered', 'activated'],

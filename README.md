@@ -27,6 +27,8 @@ More it understands:
 - **Game Changers:** `without game changers` / `bracket 2` / `casual` excludes them; `game changers in blue` shows only them.
 - **Roles:** protection, mana fixing, finishers / win cons, extra turns, evasion, stax / tax, free (pitch) spells,
   on top of removal, wipes, bounce, counterspells, ramp, tutors, recursion, payoffs, enablers and outlets.
+- **Steps:** `every upkeep`, `each end step`, `at the beginning of combat`, `draw step`. "artifacts or creatures that make
+  a token creature every upkeep" becomes an "at the beginning of upkeep, … create … token" trigger.
 - **Typos:** misspelled words get a clickable "did you mean …?". Your last 10 searches are listed under the box.
 
 Your deck filters (colors, format, price, Game Changers, rarity, sort) stay as you set them in the panel;

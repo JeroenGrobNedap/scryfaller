@@ -222,3 +222,39 @@ describe('applyPhrase — keeps your filters', () => {
     expect(current.colors).toEqual(['w', 'u']);
   });
 });
+
+describe('parsePhrase — steps like "every upkeep"', () => {
+  it('enchantments, artifacts or creatures that every upkeep make a token creature', () => {
+    const r = parsePhrase('give me enchantments, artifacts or creatures that every upkeep make a token creature');
+    expect(r.unknown).toEqual([]);
+    expect(r.state.filters.types).toEqual(['enchantment', 'artifact', 'creature']);
+    expect(compileQuery(r.state)).toBe(
+      'f:commander (t:enchantment or t:artifact or t:creature) o:/at the beginning of[^,]*upkeep[^,]*,[^.]*creates? [^.]*token/',
+    );
+  });
+
+  it('understands other ways to say it', () => {
+    for (const phrase of [
+      'cards that make tokens at the beginning of your upkeep',
+      'token makers each upkeep',
+      'repeatable tokens every upkeep',
+    ]) {
+      expect(query(phrase)).withContext(phrase).toContain('o:/at the beginning of[^,]*upkeep[^,]*,[^.]*creates? [^.]*token/');
+    }
+  });
+
+  it('knows end step, combat and draw step', () => {
+    expect(query('draw a card at the end step')).toContain('end step');
+    expect(query('scry at the beginning of combat')).toContain('combat');
+    expect(query('surveil each draw step')).toContain('draw step');
+  });
+
+  it('a step alone finds anything that triggers then', () => {
+    expect(query('upkeep triggers in black')).toBe('id<=b f:commander o:/at the beginning of[^,]*upkeep/');
+  });
+
+  it('still reads "combat damage" as the mechanic', () => {
+    expect(query('combat damage payoffs')).toContain('combat damage');
+    expect(query('combat damage payoffs')).not.toContain('at the beginning of');
+  });
+});
