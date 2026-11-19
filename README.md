@@ -29,6 +29,8 @@ More it understands:
   on top of removal, wipes, bounce, counterspells, ramp, tutors, recursion, payoffs, enablers and outlets.
 - **Typos:** misspelled words get a clickable "did you mean …?". Your last 10 searches are listed under the box.
 
+Your deck filters (colors, format, price, Game Changers, rarity, sort) stay as you set them in the panel;
+a phrase only changes the ones it mentions, and shows which ones it kept.
 It shows what it understood and which words it didn't. To teach it new words or recipes, edit
 `web/src/app/query/natural.ts` (word lists at the top, recipes at the bottom).
 

@@ -1,7 +1,9 @@
 import { Component, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { BuilderStore } from '../builder.store';
-import { ParseResult, parsePhrase } from '../query/natural';
+import { compileFilters } from '../query/compiler';
+import { defaultFilters } from '../query/model';
+import { DECK_FILTERS, ParseResult, applyPhrase, parsePhrase } from '../query/natural';
 
 const EXAMPLES = [
   'surveil payoffs in azorius',
@@ -50,6 +52,10 @@ const RECENT_MAX = 10;
             <span class="tag unknown">{{ word }}</span>
           }
         }
+        @if (kept(); as k) {
+          <span class="muted">Kept from your filters:</span>
+          <span class="tag"><code>{{ k }}</code></span>
+        }
         @for (s of r.suggestions; track $index) {
           <span class="warn">
             Did you mean
@@ -90,14 +96,19 @@ export class PhraseSearch {
   protected readonly result = signal<ParseResult | null>(null);
   protected readonly examples = EXAMPLES;
   protected readonly recent = signal<string[]>(readRecent());
+  /** The filters that came from the panel instead of the phrase, as query text. */
+  protected readonly kept = signal('');
 
   protected run(): void {
     const text = this.phrase().trim();
     if (!text) return;
     const r = parsePhrase(text);
     this.result.set(r);
+    this.kept.set('');
     if (r.recognized.length) {
-      this.store.load(r.state);
+      const current = this.store.state().filters;
+      this.kept.set(keptText(r, current));
+      this.store.load(applyPhrase(r, current));
       this.remember(text);
     }
   }
@@ -129,6 +140,14 @@ export class PhraseSearch {
     this.recent.set(list);
     writeRecent(list);
   }
+}
+
+function keptText(r: ParseResult, current: ReturnType<typeof defaultFilters>): string {
+  const only = { ...defaultFilters(), format: '' };
+  for (const key of DECK_FILTERS) {
+    if (!r.mentioned.includes(key)) (only as Record<string, unknown>)[key] = current[key];
+  }
+  return compileFilters(only).join(' ');
 }
 
 function readRecent(): string[] {

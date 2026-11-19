@@ -1,5 +1,5 @@
 import { compileQuery, explainNode } from './compiler';
-import { SUGGESTION_WORDS, normalize, parsePhrase, suggest } from './natural';
+import { SUGGESTION_WORDS, applyPhrase, normalize, parsePhrase, suggest } from './natural';
 
 const query = (phrase: string) => compileQuery(parsePhrase(phrase).state);
 
@@ -179,5 +179,46 @@ describe('typo suggestions', () => {
     for (const word of SUGGESTION_WORDS) {
       expect(parsePhrase(word).recognized.length).withContext(word).toBeGreaterThan(0);
     }
+  });
+});
+
+describe('applyPhrase — keeps your filters', () => {
+  const mine = () => {
+    const f = parsePhrase('azorius').state.filters;
+    f.format = 'brawl';
+    f.gameChangers = 'exclude';
+    f.priceMax = 3;
+    f.rarities = ['common'];
+    f.types = ['land'];
+    f.isCommander = true;
+    return f;
+  };
+
+  it('keeps colors, format, Game Changers, price and rarity the phrase does not mention', () => {
+    const state = applyPhrase(parsePhrase('removal'), mine());
+    expect(compileQuery(state)).toBe(
+      'id<=wu f:brawl -is:gamechanger (o:/(destroy|exile) target/ or o:/deals [^.]*damage to (any target|target creature)/ or o:/target creature [^.]*gets -[0-9x]/) r:common usd<=3',
+    );
+  });
+
+  it('lets the phrase override what it does mention', () => {
+    const state = applyPhrase(parsePhrase('counterspells in dimir under $1 for commander'), mine());
+    expect(state.filters.colors).toEqual(['u', 'b']);
+    expect(state.filters.format).toBe('commander');
+    expect(state.filters.priceMax).toBe(1);
+    expect(state.filters.gameChangers).toBe('exclude');
+  });
+
+  it('resets per-search filters (types, mana value, is a commander) to what the phrase says', () => {
+    const state = applyPhrase(parsePhrase('card draw'), mine());
+    expect(state.filters.types).toEqual([]);
+    expect(state.filters.isCommander).toBeFalse();
+  });
+
+  it('does not share arrays with the current filters', () => {
+    const current = mine();
+    const state = applyPhrase(parsePhrase('removal'), current);
+    state.filters.colors.push('g');
+    expect(current.colors).toEqual(['w', 'u']);
   });
 });

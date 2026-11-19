@@ -11,6 +11,7 @@
 import {
   BuilderState,
   Color,
+  Filters,
   QueryNode,
   defaultFilters,
   newAbility,
@@ -450,6 +451,8 @@ export interface ParseResult {
   unknown: string[];
   /** Likely typos among the unknown words, with the word we think was meant. */
   suggestions: { word: string; suggestion: string }[];
+  /** Deck-wide filters the phrase itself set (the rest come from the filters panel). */
+  mentioned: DeckFilter[];
   /** Problems worth telling the user about (e.g. "payoffs" without a mechanic). */
   warnings: string[];
 }
@@ -532,6 +535,37 @@ export function parsePhrase(input: string): ParseResult {
   return { ...buildState(ctx), recognized, unknown, suggestions };
 }
 
+/**
+ * Filters that describe your deck rather than this one search: colors, format, budget,
+ * Game Changers, rarity and sort order. A phrase only changes the ones it mentions, so
+ * "removal" after picking W/U in the panel still searches W/U.
+ */
+export const DECK_FILTERS = [
+  'colors',
+  'colorless',
+  'colorField',
+  'colorOp',
+  'format',
+  'priceMax',
+  'currency',
+  'gameChangers',
+  'rarities',
+  'order',
+] as const satisfies readonly (keyof Filters)[];
+export type DeckFilter = (typeof DECK_FILTERS)[number];
+
+/**
+ * The parsed phrase on top of the current filters: deck filters the phrase didn't mention
+ * are kept, everything else (card text, types, mana value, "is a commander") comes from the phrase.
+ */
+export function applyPhrase(result: ParseResult, current: Filters): BuilderState {
+  const filters: Filters = structuredClone(result.state.filters);
+  for (const key of DECK_FILTERS) {
+    if (!result.mentioned.includes(key)) (filters as Record<DeckFilter, unknown>)[key] = structuredClone(current[key]);
+  }
+  return { filters, root: result.state.root };
+}
+
 // ---------------------------------------------------------------------------------------------
 // Recipes: turning what was recognized into builder nodes
 
@@ -544,8 +578,18 @@ function plural(t: string): string {
   return t === 'sorcery' ? 'sorceries' : `${t}s`;
 }
 
-function buildState(ctx: Ctx): { state: BuilderState; warnings: string[] } {
+function buildState(ctx: Ctx): {
+  state: BuilderState;
+  warnings: string[];
+  mentioned: DeckFilter[];
+} {
   const warnings: string[] = [];
+  const mentioned: DeckFilter[] = [];
+  if (ctx.colors.size || ctx.colorless) mentioned.push('colors', 'colorless');
+  if (ctx.format) mentioned.push('format');
+  if (ctx.staples) mentioned.push('order');
+  if (ctx.priceMax !== null) mentioned.push('priceMax', 'currency');
+  if (ctx.gameChangers) mentioned.push('gameChangers');
   const filters = defaultFilters();
   filters.colors = [...ctx.colors];
   filters.colorless = ctx.colorless && ctx.colors.size === 0;
@@ -680,7 +724,7 @@ function buildState(ctx: Ctx): { state: BuilderState; warnings: string[] } {
     }
   }
 
-  return { state: { filters, root: newGroup('or', nodes) }, warnings };
+  return { state: { filters, root: newGroup('or', nodes) }, warnings, mentioned };
 }
 
 /** Turns a regex alternation like `(artifact|enchantment)` into "artifact / enchantment" for labels. */
