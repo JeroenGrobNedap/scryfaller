@@ -1,0 +1,39 @@
+<header class="topbar">
+  <h1>Scryfaller</h1>
+  <span class="muted">Click together Scryfall queries</span>
+  <span class="spacer"></span>
+  <button type="button" (click)="store.reset()">New query</button>
+</header>
+
+<app-phrase-search />
+
+<section class="output" aria-live="polite">
+  <code class="query">{{ store.query() || '(empty query)' }}</code>
+  <div class="row">
+    <button type="button" (click)="copy()" [disabled]="!store.query()">{{ copied() ? 'Copied!' : 'Copy' }}</button>
+    <a class="button primary" [href]="scryfallUrl(store.query())" target="_blank" rel="noopener">Open on Scryfall ↗</a>
+  </div>
+  @if (store.explanation().length) {
+    <ul class="explain">
+      @for (line of store.explanation(); track $index) {
+        <li>{{ line }}</li>
+      }
+    </ul>
+  }
+</section>
+
+<main class="layout">
+  <aside class="panel">
+    <h2>Filters</h2>
+    <app-filters-panel [filters]="store.state().filters" />
+  </aside>
+
+  <section class="panel">
+    <h2>Card text</h2>
+    <app-node-editor [node]="store.state().root" />
+  </section>
+
+  <aside class="panel">
+    <app-saved-panel />
+  </aside>
+</main>

@@ -1,0 +1,13 @@
+# Dependencies & build output
+node_modules/
+dist/
+.angular/
+coverage/
+
+# Local data (saved queries)
+api/data/
+
+# OS / editor / logs
+.DS_Store
+*.log
+.env
