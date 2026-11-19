@@ -53,6 +53,8 @@ interface Ctx {
   isCommander: boolean;
   mvMin: number | null;
   mvMax: number | null;
+  /** "staples": sort by EDHREC popularity so the most-played cards come first. */
+  staples: boolean;
 }
 
 interface Entry {
@@ -249,6 +251,12 @@ const TYPE_WORDS: Entry[] = [
 
 const OTHER_WORDS: Entry[] = [
   {
+    // Scryfall can't filter on popularity, but it can sort by it: the staples come first.
+    pattern: 'staples?|popular|most played|best|goto|go to|auto ?includes?',
+    meaning: 'staples (most played on EDHREC first)',
+    apply: (c) => (c.staples = true),
+  },
+  {
     pattern: 'commanders|as (a |my )?commander|legendary creatures?',
     meaning: 'can be a commander',
     apply: (c) => (c.isCommander = true),
@@ -299,7 +307,7 @@ const ALL_ENTRIES = [
 /** Filler words that are fine to ignore (not reported as "not understood"). */
 const STOPWORDS = new Set(
   `i im i'm want wanna need to have find me some cards card that which in for with and or the a an my deck decks
-  give show looking look colors color colours colour good best list of are is do can please search get all any also
+  give show looking look colors color colours colour good list of are is do can please search get all any also
   like stuff things mono only both either triggers trigger abilities ability on from into by it them you your what
   would something there build building using use playing play run running other more great nice new ones one
   let lets s let's`.split(/\s+/),
@@ -369,6 +377,7 @@ export function parsePhrase(input: string): ParseResult {
     isCommander: false,
     mvMin: null,
     mvMax: null,
+    staples: false,
   };
   const recognized: Recognized[] = [];
   for (const h of accepted) {
@@ -408,6 +417,7 @@ function buildState(ctx: Ctx): { state: BuilderState; warnings: string[] } {
   filters.isCommander = ctx.isCommander;
   filters.mvMin = ctx.mvMin;
   filters.mvMax = ctx.mvMax;
+  if (ctx.staples) filters.order = 'edhrec';
 
   const roles = [...ctx.roles];
   const mechanics = [...ctx.mechanics];
@@ -420,8 +430,10 @@ function buildState(ctx: Ctx): { state: BuilderState; warnings: string[] } {
   const mechanicRoles = roles.filter((r) => MECHANIC_ROLES.includes(r));
 
   if (mechanics.length > 0 && mechanicRoles.length === 0 && !targeted) {
-    // Just a mechanic: cards that do it or mention it.
-    nodes.push(newAbility({ abilityKinds: ['anywhere'], effects: mechanics }));
+    // Just a mechanic: cards that do it or mention it. "Card draw" has its own, tighter recipe.
+    const rest = mechanics.filter((m) => m !== 'draw');
+    if (rest.length < mechanics.length) nodes.push(drawNode());
+    if (rest.length) nodes.push(newAbility({ abilityKinds: ['anywhere'], effects: rest }));
   }
   if (mechanicRoles.length > 0 && mechanics.length === 0) {
     warnings.push(`Which mechanic? e.g. "${ROLE_EXAMPLE[mechanicRoles[0]]}".`);
@@ -563,6 +575,13 @@ function wipeNode(targets: string[]): QueryNode {
     nodes.push(newRaw('o:/damage to each (other )?creature/', 'Damage to each creature'));
   }
   return nodes.length === 1 ? nodes[0] : newGroup('or', nodes);
+}
+
+function drawNode(): QueryNode {
+  return newRaw(
+    'o:/draws? (a|two|three|four|five|six|seven|x|that many) cards?|draws? cards equal/',
+    'Draws cards',
+  );
 }
 
 function rampNode(): QueryNode {

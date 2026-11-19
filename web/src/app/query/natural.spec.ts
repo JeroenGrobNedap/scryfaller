@@ -92,3 +92,31 @@ describe('parsePhrase — feedback', () => {
     );
   });
 });
+
+describe('parsePhrase — staples', () => {
+  it('card draw staples in esper', () => {
+    const r = parsePhrase('give me card draw staples in esper');
+    expect(compileQuery(r.state)).toBe(
+      'id<=wub f:commander o:/draws? (a|two|three|four|five|six|seven|x|that many) cards?|draws? cards equal/ order:edhrec',
+    );
+    expect(r.unknown).toEqual([]);
+  });
+
+  it('removal staples in gruul', () => {
+    const q = query('give me removal staples in gruul');
+    expect(q).toMatch(/^id<=rg f:commander .*o:\/\(destroy\|exile\) target\/.* order:edhrec$/);
+  });
+
+  it('recursion staples in black', () => {
+    const q = query('give me recursion staples in black');
+    expect(q).toMatch(/^id<=b f:commander .*from your graveyard.* order:edhrec$/);
+  });
+
+  it('staples on their own just sorts by popularity', () => {
+    expect(query('best cards in azorius')).toBe('id<=wu f:commander order:edhrec');
+  });
+
+  it('card draw payoffs still mean "whenever you draw"', () => {
+    expect(query('card draw payoffs in blue')).toBe('id<=u f:commander o:/whenever[^,]*draw/');
+  });
+});

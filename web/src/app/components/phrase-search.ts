@@ -11,6 +11,8 @@ const EXAMPLES = [
   'cheap creature removal in rakdos',
   'selesnya commanders that care about tokens',
   'sultai mana dorks',
+  'card draw staples in esper',
+  'removal staples in gruul',
 ];
 
 /** Type what you want, press Enter: fills the builder (and so the query) from the phrase. */

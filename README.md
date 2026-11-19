@@ -16,6 +16,10 @@ The box at the top understands short phrases (rule-based, no AI) and fills in th
 - `surveil payoffs in azorius` · `sacrifice outlets in boros` · `repeatable scry or surveil in esper`
 - `artifact and/or enchantment removal in black` · `cheap creature removal in rakdos` · `artifact board wipes`
 - `selesnya commanders that care about tokens` · `sultai mana dorks` · `+1/+1 counter payoffs under 4 mana`
+- `card draw staples in esper` · `removal staples in gruul` · `recursion staples in black`
+
+"Staples" (or "best", "popular", "most played") sorts by EDHREC popularity (`order:edhrec`), so the most-played
+cards come first. Scryfall can sort by popularity but not filter on it, so the long tail is still there further down.
 
 It shows what it understood and which words it didn't. To teach it new words or recipes, edit
 `web/src/app/query/natural.ts` (word lists at the top, recipes at the bottom).
