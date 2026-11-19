@@ -747,6 +747,57 @@ p.small {
   }
 }
 
+.card-list th {
+  text-align: left;
+  font-size: 0.72rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--muted);
+  padding: 4px 6px;
+  border-bottom: 1px solid var(--border);
+  white-space: nowrap;
+}
+
+.card-list th.cl-price {
+  text-align: right;
+}
+
+.cl-type {
+  white-space: nowrap;
+  font-size: 0.85rem;
+}
+
+.cl-text {
+  font-size: 0.82rem;
+  width: 50%;
+}
+
+.clamp {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+  line-clamp: 3;
+  overflow: hidden;
+  white-space: pre-line;
+}
+
+@media (max-width: 560px) {
+  .clamp {
+    -webkit-line-clamp: 2;
+    line-clamp: 2;
+  }
+}
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+
 /* Mana symbols */
 .mana-cost {
   display: inline-flex;

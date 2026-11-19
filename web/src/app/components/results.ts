@@ -18,6 +18,19 @@ interface View extends Omit<SearchResult, 'status'> {
   status: Status;
 }
 
+const TYPE_ABBREVIATIONS: Record<string, string> = {
+  Legendary: 'Leg.',
+  Artifact: 'Art.',
+  Enchantment: 'Ench.',
+  Planeswalker: 'PW',
+  Instant: 'Inst.',
+  Sorcery: 'Sorc.',
+  Kindred: 'Kin.',
+  Tribal: 'Kin.',
+  Basic: 'Basic',
+  Snow: 'Snow',
+};
+
 const IDLE: View = { status: 'idle', cards: [], total: 0, warnings: [], message: '' };
 const DEBOUNCE_MS = 500;
 const PAGE = 30;
@@ -87,6 +100,16 @@ const VIEW_KEY = 'scryfaller.view';
           </div>
         } @else {
           <table class="card-list" [class.stale]="r.status === 'loading'">
+            <thead>
+              <tr>
+                <th class="cl-pick"><span class="sr-only">Shortlist</span></th>
+                <th>Name</th>
+                <th>Cost</th>
+                <th class="cl-type">Type</th>
+                <th>Text</th>
+                <th class="cl-price">Price</th>
+              </tr>
+            </thead>
             <tbody>
               @for (c of shown(); track c.id) {
                 <tr>
@@ -104,7 +127,8 @@ const VIEW_KEY = 'scryfaller.view';
                   </td>
                   <td class="cl-name"><button type="button" class="link" (click)="open(c)">{{ c.name }}</button></td>
                   <td class="cl-cost"><app-mana-cost [cost]="cost(c)" /></td>
-                  <td class="cl-type muted">{{ type(c) }}</td>
+                  <td class="cl-type muted" [title]="type(c)">{{ shortType(c) }}</td>
+                  <td class="cl-text"><span class="clamp" [title]="text(c)">{{ text(c) }}</span></td>
                   <td class="cl-price">{{ price(c) }}</td>
                 </tr>
               }
@@ -193,6 +217,24 @@ export class ResultsPanel {
       const query = this.store.query();
       untracked(() => this.schedule(query));
     });
+  }
+
+  /** "Legendary Artifact Creature — Human" → "Leg. Art. Creature"; the full line is in the tooltip. */
+  protected shortType(c: ScryfallCard): string {
+    return this.type(c)
+      .split(' // ')[0]
+      .split(' — ')[0]
+      .split(' ')
+      .map((w) => TYPE_ABBREVIATIONS[w] ?? w)
+      .join(' ');
+  }
+
+  /** Rules text without reminder text (the preview has the full text); double-faced cards show both faces. */
+  protected text(c: ScryfallCard): string {
+    return this.faces(c)
+      .map((f) => (f.oracle_text ?? '').replace(/ ?\([^)]*\)/g, '').trim())
+      .filter(Boolean)
+      .join(' // ');
   }
 
   protected price(c: ScryfallCard): string {
