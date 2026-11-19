@@ -32,6 +32,8 @@ More it understands:
 - **If / then:** `whenever a creature attacks then surveil or scry`, `if a creature dies, draw a card`,
   `scry whenever a creature attacks`. The part after whenever/when/if is the trigger, the part after
   then / a comma / do is what the card does.
+- **Not:** `not lands`, `nonland`, `non-creature`, `without scry`, `that don't make tokens`, `except artifacts`.
+  Card types become `-t:…` (also under More → "Not these types"); mechanics become `-o:/…/`.
 - **Typos:** misspelled words get a clickable "did you mean …?". Your last 10 searches are listed under the box.
 
 Your deck filters (colors, format, price, Game Changers, rarity, sort) stay as you set them in the panel;

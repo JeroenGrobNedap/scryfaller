@@ -57,6 +57,9 @@ interface Ctx {
   roles: Set<Role>;
   mechanics: Set<string>;
   types: Set<string>;
+  /** "not lands", "without sacrifice": excluded card types and mechanics. */
+  notTypes: Set<string>;
+  notMechanics: Set<string>;
   /** Steps from "every upkeep", "at your end step", … (PHASES ids). */
   phases: Set<string>;
   /** "whenever X then Y": X goes in `conditions`, Y in `effects` (instead of `mechanics`). */
@@ -304,6 +307,13 @@ const PHASE_WORDS: Entry[] = [
   },
 ];
 
+/** "not …": the following card types or mechanics are excluded (see `parsePhrase`). */
+const NEGATION: Entry = {
+  pattern: 'but not|and not|not|no|non|without|except( for)?|excluding|exclude|minus|isnt|arent|doesnt|dont|never',
+  meaning: 'not …',
+  apply: () => undefined,
+};
+
 /** "whenever …", "if …": what follows is the trigger condition (see `splitIfThen`). */
 const TRIGGER_WORD: Entry = {
   pattern: 'whenever|when|each time|every time|if|after',
@@ -417,6 +427,7 @@ const ALL_ENTRIES = [
   ...MECHANIC_WORDS,
   ...PHASE_WORDS,
   TRIGGER_WORD,
+  NEGATION,
   ...TYPE_WORDS,
   ...OTHER_WORDS,
 ];
@@ -537,6 +548,7 @@ export function normalize(input: string): string {
     .replace(/(\d),(\d)/g, '$1.$2')
     .replace(/(?<!\+1)\/(?!\+1)/g, ' ')
     .replace(/[,:;]/g, ' , ')
+    .replace(/\bnon-?(?=(land|creature|artifact|enchantment|planeswalker|instant|sorcery|battle|token|permanent)s?\b)/g, 'non ')
     .replace(/[^a-z0-9+/., ]/g, ' ')
     .replace(/(?<!\d)\.|\.(?!\d)/g, ' ')
     .replace(/\s+/g, ' ')
@@ -576,6 +588,8 @@ export function parsePhrase(input: string): ParseResult {
     mechanics: new Set(),
     types: new Set(),
     phases: new Set(),
+    notTypes: new Set(),
+    notMechanics: new Set(),
     ifThen: false,
     conditions: new Set(),
     effects: new Set(),
@@ -590,9 +604,36 @@ export function parsePhrase(input: string): ParseResult {
   };
   const zones = splitIfThen(text, accepted);
   const recognized: Recognized[] = [];
+  // After "not", following types (or mechanics) are excluded until something else comes up:
+  // "not lands or creatures" excludes both.
+  let negating: 'pending' | 'type' | 'mechanic' | null = null;
+  const notWarnings: string[] = [];
   for (const h of accepted) {
     let meaning =
       typeof h.entry.meaning === 'function' ? h.entry.meaning(h.match) : h.entry.meaning;
+    if (h.entry === NEGATION) {
+      negating = 'pending';
+      recognized.push({ text: h.match[0], meaning });
+      continue;
+    }
+    const isType = TYPE_WORDS.includes(h.entry);
+    const isMechanic = MECHANIC_WORDS.includes(h.entry);
+    if (negating && ((isType && negating !== 'mechanic') || (isMechanic && negating !== 'type'))) {
+      const scratch = { ...ctx, types: new Set<string>(), mechanics: new Set<string>() };
+      h.entry.apply(scratch, h.match);
+      scratch.types.forEach((t) => t !== 'permanent' && ctx.notTypes.add(t));
+      scratch.mechanics.forEach((m) => ctx.notMechanics.add(m));
+      negating = isType ? 'type' : 'mechanic';
+      recognized.push({ text: h.match[0], meaning: `not: ${meaning}` });
+      continue;
+    }
+    if (negating === 'pending') {
+      notWarnings.push(`I can only leave out card types and mechanics, so “not ${h.match[0]}” was ignored.`);
+      negating = null;
+      recognized.push({ text: h.match[0], meaning: '(ignored after “not”)' });
+      continue;
+    }
+    negating = null;
     const zone = zones?.get(h);
     if (zone && MECHANIC_WORDS.includes(h.entry)) {
       // Collect the mechanic ids this entry adds, then file them as condition or effect.
@@ -624,7 +665,8 @@ export function parsePhrase(input: string): ParseResult {
     return suggestion ? [{ word, suggestion }] : [];
   });
 
-  return { ...buildState(ctx), recognized, unknown, suggestions };
+  const built = buildState(ctx);
+  return { ...built, warnings: [...notWarnings, ...built.warnings], recognized, unknown, suggestions };
 }
 
 /**
@@ -690,6 +732,7 @@ function buildState(ctx: Ctx): {
   filters.mvMin = ctx.mvMin;
   filters.mvMax = ctx.mvMax;
   if (ctx.staples) filters.order = 'edhrec';
+  filters.notTypes = [...ctx.notTypes];
   filters.priceMax = ctx.priceMax;
   filters.currency = ctx.currency;
   filters.gameChangers = ctx.gameChangers;
@@ -773,7 +816,7 @@ function buildState(ctx: Ctx): {
         nodes.push(newRaw('o:/counter target ([^.]* )?spell/', 'Counters target spell'));
         break;
       case 'ramp':
-        nodes.push(rampNode());
+        nodes.push(rampNode(!ctx.notTypes.has('land')));
         break;
       case 'tutor':
         nodes.push(tutorNode(targets));
@@ -831,7 +874,18 @@ function buildState(ctx: Ctx): {
     }
   }
 
-  return { state: { filters, root: newGroup('or', nodes) }, warnings, mentioned };
+  const root = newGroup('or', nodes);
+  if (ctx.notMechanics.size) {
+    // "…without sacrifice": none of these mechanics anywhere in the text.
+    const excluded = newAbility({ abilityKinds: ['anywhere'], effects: [...ctx.notMechanics] });
+    excluded.negated = true;
+    return {
+      state: { filters, root: nodes.length ? newGroup('and', [root, excluded]) : newGroup('and', [excluded]) },
+      warnings,
+      mentioned,
+    };
+  }
+  return { state: { filters, root }, warnings, mentioned };
 }
 
 /** Turns a regex alternation like `(artifact|enchantment)` into "artifact / enchantment" for labels. */
@@ -921,15 +975,14 @@ function drawNode(): QueryNode {
   );
 }
 
-function rampNode(): QueryNode {
-  return newGroup('and', [
-    newGroup('or', [
-      newRaw('o:/search your library for [^.]*land/', 'Searches for a land'),
-      newRaw('o:/put [^.]*land [^.]*onto the battlefield/', 'Puts a land onto the battlefield'),
-      newRaw('o:"{T}: Add"', 'Taps for mana'),
-    ]),
-    newRaw('-t:land', 'Not a land itself'),
+/** `excludeLands`: ramp means non-land cards; skipped when the phrase already says "not lands". */
+function rampNode(excludeLands = true): QueryNode {
+  const ramp = newGroup('or', [
+    newRaw('o:/search your library for [^.]*land/', 'Searches for a land'),
+    newRaw('o:/put [^.]*land [^.]*onto the battlefield/', 'Puts a land onto the battlefield'),
+    newRaw('o:"{T}: Add"', 'Taps for mana'),
   ]);
+  return excludeLands ? newGroup('and', [ramp, newRaw('-t:land', 'Not a land itself')]) : ramp;
 }
 
 function tutorNode(targets: string[]): QueryNode {

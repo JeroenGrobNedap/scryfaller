@@ -45,6 +45,7 @@ export function compileFilters(f: Filters): string[] {
   if (f.format) parts.push(`f:${f.format}`);
   if (f.isCommander) parts.push('is:commander');
   if (f.types.length > 0) parts.push(orList(f.types.map((t) => `t:${t}`)));
+  for (const t of f.notTypes ?? []) parts.push(`-t:${t}`);
   if (f.mvMin !== null && f.mvMin === f.mvMax) {
     parts.push(`mv=${f.mvMin}`);
   } else {

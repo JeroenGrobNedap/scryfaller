@@ -96,6 +96,10 @@ const COLORS: { id: Color; label: string; name: string }[] = [
             <app-chips [options]="types" [selected]="f.types" />
           </div>
           <div class="slot">
+            <span class="slot-label">Not these types</span>
+            <app-chips [options]="types" [selected]="f.notTypes" />
+          </div>
+          <div class="slot">
             <span class="slot-label">Mana value</span>
             <div class="row">
               <input type="number" min="0" class="num" placeholder="min" [(ngModel)]="f.mvMin" (ngModelChange)="store.touch()" aria-label="Minimum mana value" />
@@ -130,6 +134,7 @@ export class FiltersPanel {
     return (
       (f.colorField === 'color' ? 1 : 0) +
       f.types.length +
+      f.notTypes.length +
       (f.mvMin !== null || f.mvMax !== null ? 1 : 0) +
       f.rarities.length +
       (f.isCommander ? 1 : 0)

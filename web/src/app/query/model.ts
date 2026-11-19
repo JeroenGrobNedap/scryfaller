@@ -15,6 +15,8 @@ export interface Filters {
   isCommander: boolean;
   /** Card types; multiple are OR-ed. */
   types: string[];
+  /** Card types the card must NOT have, e.g. `land` → `-t:land`. */
+  notTypes: string[];
   mvMin: number | null;
   mvMax: number | null;
   rarities: string[];
@@ -99,6 +101,7 @@ export function defaultFilters(): Filters {
     format: 'commander',
     isCommander: false,
     types: [],
+    notTypes: [],
     mvMin: null,
     mvMax: null,
     rarities: [],

@@ -291,3 +291,47 @@ describe('parsePhrase — "whenever X then Y"', () => {
     expect(parsePhrase('enchantments, artifacts or creatures that make tokens every upkeep').unknown).toEqual([]);
   });
 });
+
+describe('parsePhrase — not / no / non / without', () => {
+  it('token generators staples that are enchantments or artifacts and not lands', () => {
+    const r = parsePhrase('give me token generators staples that are enchantments or artifacts and not lands');
+    expect(r.unknown).toEqual([]);
+    expect(compileQuery(r.state)).toBe(
+      'f:commander (t:enchantment or t:artifact) -t:land o:/creates? [^.]*token/ order:edhrec',
+    );
+  });
+
+  it('nonland, non-creature and "without" spellings', () => {
+    expect(query('nonland ramp in green')).toContain('-t:land');
+    expect(query('non-creature removal in black')).toContain('-t:creature');
+    expect(query('card draw without creatures')).toContain('-t:creature');
+  });
+
+  it('"not lands or creatures" excludes both', () => {
+    const f = parsePhrase('ramp not lands or creatures').state.filters;
+    expect(f.notTypes).toEqual(['land', 'creature']);
+  });
+
+  it('excludes mechanics from the card text', () => {
+    expect(query('sacrifice outlets in rakdos that dont make tokens')).toBe(
+      'id<=br f:commander o:/sacrifice (a|an|another|one|two|x) [^:.]*:/ -o:/creates? [^.]*token/',
+    );
+    expect(query('artifacts without scry')).toBe('f:commander t:artifact -o:/scr[yi]/');
+  });
+
+  it('warns when it cannot exclude something', () => {
+    const r = parsePhrase('removal not red');
+    expect(r.warnings.join(' ')).toContain('“not red” was ignored');
+    expect(r.state.filters.colors).toEqual([]);
+  });
+
+  it('"no game changers" still means the Game Changers filter', () => {
+    expect(query('removal with no game changers')).toContain('-is:gamechanger');
+  });
+});
+
+describe('parsePhrase — not, with recipes', () => {
+  it('"nonland ramp" has -t:land once', () => {
+    expect(query('nonland ramp in green').match(/-t:land/g)?.length).toBe(1);
+  });
+});
