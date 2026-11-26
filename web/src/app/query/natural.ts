@@ -37,7 +37,8 @@ export type Role =
   | 'extra-turn'
   | 'evasion'
   | 'stax'
-  | 'free';
+  | 'free'
+  | 'graveyard-hate';
 
 /** Roles where card types mean "what it hits / finds" instead of "what the card is". */
 const ROLE_EXAMPLE: Partial<Record<Role, string>> = {
@@ -75,6 +76,8 @@ interface Ctx {
   priceMax: number | null;
   currency: 'usd' | 'eur';
   gameChangers: '' | 'exclude' | 'only';
+  /** Leftover words that are rules-text words or creature types (see GIST_WORDS). */
+  gist: GistWord[];
 }
 
 interface Entry {
@@ -182,6 +185,12 @@ const ROLE_WORDS: Entry[] = [
     apply: (c) => (c.roles.add('ramp'), c.types.add('artifact')),
   },
   { pattern: 'tutors?|tutoring', meaning: 'tutor (search your library)', apply: role('tutor') },
+  {
+    pattern:
+      '(graveyard|grave|yard) ?hate|graveyard (removal|interaction)|exil(e|es|ing) (cards in |cards from )?(the |all |opponents |an opponents )?graveyards?',
+    meaning: 'graveyard hate (exiles cards from graveyards)',
+    apply: role('graveyard-hate'),
+  },
   {
     pattern: 'recursion|recur|reanimat(e|ion|or)|graveyard recursion',
     meaning: 'recursion (from graveyard)',
@@ -442,6 +451,146 @@ const STOPWORDS = new Set(
   make makes making create creates creating produce produces producing put puts gets get`.split(/\s+/),
 );
 
+// ---------------------------------------------------------------------------------------------
+// The gist: words outside the dictionary that still say something about the card
+
+interface GistWord {
+  /** The word as typed. */
+  word: string;
+  kind: 'text' | 'tribe';
+  /** Text: a regex fragment for the rules text. Tribe: the creature type. */
+  value: string;
+  label: string;
+}
+
+/**
+ * Words that show up in rules text. A leftover word (after stemming: "exiles" → "exile")
+ * that is in here becomes a rules-text search, so long sentences still get their gist:
+ * "cards that exile cards in graveyards" → exile + graveyard in one ability.
+ */
+const TEXT_WORDS: Record<string, string> = {
+  exile: 'exile',
+  return: 'return',
+  destroy: 'destroy',
+  reveal: 'reveal',
+  tap: '(^|[^n])tap',
+  block: 'block',
+  choose: 'choose',
+  vote: 'vote',
+  graveyard: 'graveyard',
+  library: 'library',
+  hand: 'hand',
+  opponent: 'opponent',
+  copy: 'cop(y|ies)',
+  double: 'double',
+  power: 'power',
+  toughness: 'toughness',
+  flying: 'flying',
+  haste: 'haste',
+  trample: 'trample',
+  lifelink: 'lifelink',
+  deathtouch: 'deathtouch',
+  vigilance: 'vigilance',
+  menace: 'menace',
+  flash: 'flash',
+  ward: 'ward',
+  fight: 'fights?',
+  goad: 'goad',
+  monarch: 'monarch',
+  initiative: 'initiative',
+  proliferate: 'proliferate',
+  energy: 'energy|\\{e\\}',
+  poison: 'poison',
+  infect: 'infect|toxic',
+  cascade: 'cascade',
+  storm: 'storm',
+  convoke: 'convoke',
+  flashback: 'flashback',
+  cycle: 'cycl',
+  cycling: 'cycl',
+  dredge: 'dredge',
+  kicker: 'kick',
+  equipment: 'equip',
+  equip: 'equip',
+  aura: 'aura',
+  vehicle: 'vehicle',
+  crew: 'crew',
+  treasure: 'treasure',
+  food: 'food',
+  clue: 'clue',
+  investigate: 'investigate',
+  shuffle: 'shuffle',
+  transform: 'transform',
+  coin: 'coin',
+  dice: 'roll',
+  dungeon: 'dungeon|venture',
+  venture: 'venture',
+  blink: 'exile [^.]*return',
+  flicker: 'exile [^.]*return',
+  loot: 'draw[^.]*discard',
+  rummage: 'discard[^.]*draw',
+  wheel: 'discards? (their|your|his or her) hand',
+  mutate: 'mutate',
+  ninjutsu: 'ninjutsu',
+  unearth: 'unearth',
+  madness: 'madness',
+  delirium: 'delirium',
+  threshold: 'threshold',
+  morph: 'morph',
+  foretell: 'foretell',
+  adventure: 'adventure',
+  saga: 'saga|lore counter',
+  discover: 'discover',
+  connive: 'connive',
+  explore: 'explore',
+  amass: 'amass',
+  populate: 'populate',
+  manifest: 'manifest',
+  sacrifice: 'sacrifice',
+  counter: 'counter',
+  emblem: 'emblem',
+  copies: 'cop(y|ies)',
+};
+
+/** Creature types: "elves", "zombies" → `t:elf`, `t:zombie`. */
+const TRIBES = new Set(
+  `elf goblin zombie vampire dragon angel demon merfolk wizard knight soldier human spirit sliver
+  dinosaur cat dog squirrel rat faerie pirate warrior cleric rogue elemental beast hydra ninja samurai
+  dwarf wolf werewolf horror eldrazi giant snake bird insect spider treefolk phyrexian artificer druid
+  shaman assassin myr thopter servo bat frog otter rabbit mouse hound kithkin construct golem saproling
+  devil imp minotaur centaur angel avatar god kraken leviathan octopus serpent shark fish whale`.split(/\s+/),
+);
+const TRIBE_ALIASES: Record<string, string> = { fairy: 'faerie', fairies: 'faerie', mice: 'mouse', dice: 'dice' };
+
+/** Plausible dictionary forms of a word: "exiles" → exile, "elves" → elf, "copies" → copy. */
+function stems(word: string): string[] {
+  return [
+    word,
+    TRIBE_ALIASES[word] ?? '',
+    word.replace(/ies$/, 'y'),
+    word.replace(/ves$/, 'f'),
+    word.replace(/es$/, ''),
+    word.replace(/s$/, ''),
+    word.replace(/ing$/, ''),
+    word.replace(/ing$/, 'e'),
+    word.replace(/ed$/, ''),
+    word.replace(/d$/, ''),
+  ].filter(Boolean);
+}
+
+/** The gist of a leftover word, if it is a rules-text word or a creature type. */
+function gistOf(word: string, next: string | undefined): GistWord | null {
+  for (const stem of stems(word)) {
+    if (TRIBES.has(stem)) {
+      // "soldier tokens": the token's type, so look for it in the text instead.
+      if (next?.startsWith('token')) return { word, kind: 'text', value: stem, label: stem };
+      return { word, kind: 'tribe', value: stem, label: stem };
+    }
+    if (TEXT_WORDS[stem]) return { word, kind: 'text', value: TEXT_WORDS[stem], label: stem };
+  }
+  return null;
+}
+
 /**
  * Words offered as "did you mean …?" for typos. Every word here must be understood on its own
  * (a test checks this), so clicking a suggestion always helps.
@@ -455,6 +604,7 @@ export const SUGGESTION_WORDS = [
   discard mill dies enters attacks spellslinger landfall impulse steal theft untap damage artifacts
   enchantments creatures planeswalkers lands instants sorceries battles permanents commanders
   commander staples popular budget casual cheap`.split(/\s+/),
+  ...Object.keys(TEXT_WORDS).filter((w) => w.length >= 6 && !/^(copies|cycle)$/.test(w)),
 ];
 
 /** Damerau–Levenshtein distance (with adjacent swaps), for typo suggestions. */
@@ -601,6 +751,7 @@ export function parsePhrase(input: string): ParseResult {
     priceMax: null,
     currency: 'usd',
     gameChangers: '',
+    gist: [],
   };
   const zones = splitIfThen(text, accepted);
   const recognized: Recognized[] = [];
@@ -654,11 +805,24 @@ export function parsePhrase(input: string): ParseResult {
   const separators = zones ? [...text.matchAll(THEN)].map((m) => m.index) : [];
 
   const unknown: string[] = [];
-  for (const word of text.matchAll(/\S+/g)) {
+  const words = [...text.matchAll(/\S+/g)];
+  words.forEach((word, i) => {
     const covered =
       accepted.some((a) => word.index >= a.start && word.index < a.end) || separators.includes(word.index);
-    if (!covered && !STOPWORDS.has(word[0]) && !/^\d+$/.test(word[0])) unknown.push(word[0]);
-  }
+    if (covered || STOPWORDS.has(word[0]) || /^\d+$/.test(word[0])) return;
+    // Not in the dictionary, but maybe a rules-text word or creature type: keep the gist.
+    const gist = gistOf(word[0], words[i + 1]?.[0]);
+    if (!gist) {
+      unknown.push(word[0]);
+      return;
+    }
+    if (ctx.gist.some((g) => g.value === gist.value)) return;
+    ctx.gist.push(gist);
+    recognized.push({
+      text: word[0],
+      meaning: gist.kind === 'tribe' ? `is a ${gist.label}` : `card text mentions “${gist.label}”`,
+    });
+  });
 
   const suggestions = unknown.flatMap((word) => {
     const suggestion = suggest(word);
@@ -866,6 +1030,14 @@ function buildState(ctx: Ctx): {
           ]),
         );
         break;
+      case 'graveyard-hate':
+        nodes.push(
+          newRaw(
+            'o:/exile (target|all|each|up to|any number of)[^.]*graveyard/',
+            'Exiles cards from graveyards',
+          ),
+        );
+        break;
       case 'free':
         nodes.push(
           newRaw("o:/rather than pay this spell's mana cost/", 'Can be cast without paying its mana cost'),
@@ -875,12 +1047,17 @@ function buildState(ctx: Ctx): {
   }
 
   const root = newGroup('or', nodes);
+  // Everything below must hold as well: the gist words, and "…without sacrifice".
+  const required = gistNodes(ctx.gist);
   if (ctx.notMechanics.size) {
     // "…without sacrifice": none of these mechanics anywhere in the text.
     const excluded = newAbility({ abilityKinds: ['anywhere'], effects: [...ctx.notMechanics] });
     excluded.negated = true;
+    required.push(excluded);
+  }
+  if (required.length) {
     return {
-      state: { filters, root: nodes.length ? newGroup('and', [root, excluded]) : newGroup('and', [excluded]) },
+      state: { filters, root: newGroup('and', nodes.length ? [root, ...required] : required) },
       warnings,
       mentioned,
     };
@@ -1011,4 +1188,44 @@ function recursionNode(targets: string[]): QueryNode {
       `Reanimates a ${readable(what)}`,
     ),
   ]);
+}
+
+/**
+ * The gist words as searches. Creature types become `t:`; up to three text words must appear
+ * in one ability (same line, any order), more than that each on their own.
+ */
+function gistNodes(gist: GistWord[]): QueryNode[] {
+  const nodes: QueryNode[] = gist
+    .filter((g) => g.kind === 'tribe')
+    .map((g) => newRaw(`t:${g.value}`, `Is a ${g.label}`));
+  const text = gist.filter((g) => g.kind === 'text');
+  if (text.length === 1) {
+    nodes.push(newRaw(`o:/${text[0].value}/`, `Mentions “${text[0].label}”`));
+  } else if (text.length <= 3 && text.length > 1) {
+    const orders = permutations(text).map((p) => p.map((g) => wrap(g.value)).join('[^\\n]*'));
+    nodes.push(
+      newRaw(`o:/${orders.join('|')}/`, `Mentions ${text.map((g) => `“${g.label}”`).join(' and ')} in one ability`),
+    );
+  } else {
+    nodes.push(...text.map((g) => newRaw(`o:/${g.value}/`, `Mentions “${g.label}”`)));
+  }
+  return nodes;
+}
+
+/** A fragment with a top-level `|` needs parentheses before it can be chained. */
+function wrap(fragment: string): string {
+  let depth = 0;
+  for (const ch of fragment) {
+    if (ch === '(') depth++;
+    else if (ch === ')') depth--;
+    else if (ch === '|' && depth === 0) return `(${fragment})`;
+  }
+  return fragment;
+}
+
+function permutations<T>(items: T[]): T[][] {
+  if (items.length <= 1) return [items];
+  return items.flatMap((item, i) =>
+    permutations([...items.slice(0, i), ...items.slice(i + 1)]).map((rest) => [item, ...rest]),
+  );
 }

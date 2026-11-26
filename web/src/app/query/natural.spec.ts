@@ -335,3 +335,33 @@ describe('parsePhrase — not, with recipes', () => {
     expect(query('nonland ramp in green').match(/-t:land/g)?.length).toBe(1);
   });
 });
+
+describe('parsePhrase — the gist of longer sentences', () => {
+  it('graveyard hate, however it is phrased', () => {
+    const q = 'f:commander o:/exile (target|all|each|up to|any number of)[^.]*graveyard/';
+    expect(query('give me cards that makes exiles cards in graveyards')).toBe(q);
+    expect(query('graveyard hate')).toBe(q);
+    expect(parsePhrase('give me cards that makes exiles cards in graveyards').unknown).toEqual([]);
+  });
+
+  it('stems leftover rules-text words and needs them in one ability', () => {
+    const r = parsePhrase('creatures that copies spells from the graveyard');
+    expect(r.unknown).toEqual([]);
+    expect(query('artifacts that shuffle graveyards into libraries')).toContain(
+      'o:/shuffle[^\\n]*graveyard[^\\n]*library|',
+    );
+  });
+
+  it('creature types become a type filter, together with the rest', () => {
+    expect(query('elves that make tokens')).toBe('f:commander o:/creates? [^.]*token/ t:elf');
+  });
+
+  it('a creature type before "tokens" is about the token', () => {
+    expect(query('soldier tokens')).toContain('o:/soldier/');
+    expect(query('soldier tokens')).not.toContain('t:soldier');
+  });
+
+  it('still reports words that mean nothing', () => {
+    expect(parsePhrase('flying blorpers').unknown).toEqual(['blorpers']);
+  });
+});

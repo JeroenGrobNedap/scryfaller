@@ -34,6 +34,10 @@ More it understands:
   then / a comma / do is what the card does.
 - **Not:** `not lands`, `nonland`, `non-creature`, `without scry`, `that don't make tokens`, `except artifacts`.
   Card types become `-t:…` (also under More → "Not these types"); mechanics become `-o:/…/`.
+- **Longer sentences:** words it doesn't know as phrases are still used when they're rules-text words or
+  creature types, in any form (`exiles`, `graveyards`, `elves`). `zombies that return creatures from my graveyard
+  and give them haste` → `t:zombie` plus return + graveyard + haste in the same ability. `graveyard hate` /
+  `cards that exile cards in graveyards` has its own recipe.
 - **Typos:** misspelled words get a clickable "did you mean …?". Your last 10 searches are listed under the box.
 
 Your deck filters (colors, format, price, Game Changers, rarity, sort) stay as you set them in the panel;
