@@ -18,6 +18,7 @@ import {
   newGroup,
   newRaw,
 } from './model';
+import { KEYWORDS, SUBTYPES } from './keywords';
 
 export type Role =
   | 'payoff'
@@ -430,6 +431,51 @@ const OTHER_WORDS: Entry[] = [
   },
 ];
 
+/**
+ * Scryfall's catalog words that would be read the wrong way in a request ("play", "epic",
+ * "head", "mine", "plan"…), so they are left out of the keyword and subtype lists.
+ */
+const CATALOG_IGNORED = new Set(
+  `activate play support learn exchange convert seek prepared epic sweep legacy double triple heal attach
+  head eye guest sand noble child citizen coward elder eternal weird toy mine plan stone gold map book
+  junk infinity cloud tower town sphere role shard room rune case class q qu prism orb seal spike spawn
+  mite drone minion villain gamer hero plant mount survivor reflection illusion carrier processor
+  officer scientist employee performer detective doctor`
+    .split(/\s+/)
+    .concat('seek out'),
+);
+
+const regexEscape = (s: string) => s.replace(/[.*+?^${}()|[\]\\/]/g, '\\$&');
+
+/** Single-word keywords ("prowess", "convoke") → their rules-text fragment. */
+const KEYWORD_WORDS = new Map(
+  KEYWORDS.map((k) => k.toLowerCase())
+    .filter((k) => /^[a-z]+$/.test(k) && !CATALOG_IGNORED.has(k))
+    .map((k) => [k, k]),
+);
+
+/** Creature, artifact, enchantment, land and spell types, for `t:`. */
+const SUBTYPE_WORDS = new Set(
+  SUBTYPES.map((t) => t.toLowerCase()).filter((t) => /^[a-z]+$/.test(t) && !CATALOG_IGNORED.has(t)),
+);
+
+/** Keywords of more than one word ("first strike", "jump-start", "for mirrodin!"). */
+const KEYWORD_PHRASES: Entry[] = KEYWORDS.flatMap((k) => {
+  const typed = normalize(k);
+  const label = k.toLowerCase();
+  if (!typed.includes(' ') || CATALOG_IGNORED.has(label)) return [];
+  return [
+    {
+      pattern: `${regexEscape(typed)}s?`,
+      meaning: `card text mentions “${label}”`,
+      apply: (ctx: Ctx, m: RegExpMatchArray) => {
+        if (!ctx.gist.some((g) => g.label === label))
+          ctx.gist.push({ word: m[0], kind: 'text', value: regexEscape(label), label });
+      },
+    },
+  ];
+});
+
 const ALL_ENTRIES = [
   ...COLOR_WORDS,
   ...ROLE_WORDS,
@@ -439,6 +485,7 @@ const ALL_ENTRIES = [
   NEGATION,
   ...TYPE_WORDS,
   ...OTHER_WORDS,
+  ...KEYWORD_PHRASES,
 ];
 
 /** Filler words that are fine to ignore (not reported as "not understood"). */
@@ -457,8 +504,8 @@ const STOPWORDS = new Set(
 interface GistWord {
   /** The word as typed. */
   word: string;
-  kind: 'text' | 'tribe';
-  /** Text: a regex fragment for the rules text. Tribe: the creature type. */
+  kind: 'text' | 'subtype';
+  /** Text: a regex fragment for the rules text. Subtype: the type for `t:`. */
   value: string;
   label: string;
 }
@@ -510,10 +557,7 @@ const TEXT_WORDS: Record<string, string> = {
   cycling: 'cycl',
   dredge: 'dredge',
   kicker: 'kick',
-  equipment: 'equip',
   equip: 'equip',
-  aura: 'aura',
-  vehicle: 'vehicle',
   crew: 'crew',
   treasure: 'treasure',
   food: 'food',
@@ -538,8 +582,6 @@ const TEXT_WORDS: Record<string, string> = {
   threshold: 'threshold',
   morph: 'morph',
   foretell: 'foretell',
-  adventure: 'adventure',
-  saga: 'saga|lore counter',
   discover: 'discover',
   connive: 'connive',
   explore: 'explore',
@@ -552,21 +594,13 @@ const TEXT_WORDS: Record<string, string> = {
   copies: 'cop(y|ies)',
 };
 
-/** Creature types: "elves", "zombies" → `t:elf`, `t:zombie`. */
-const TRIBES = new Set(
-  `elf goblin zombie vampire dragon angel demon merfolk wizard knight soldier human spirit sliver
-  dinosaur cat dog squirrel rat faerie pirate warrior cleric rogue elemental beast hydra ninja samurai
-  dwarf wolf werewolf horror eldrazi giant snake bird insect spider treefolk phyrexian artificer druid
-  shaman assassin myr thopter servo bat frog otter rabbit mouse hound kithkin construct golem saproling
-  devil imp minotaur centaur angel avatar god kraken leviathan octopus serpent shark fish whale`.split(/\s+/),
-);
-const TRIBE_ALIASES: Record<string, string> = { fairy: 'faerie', fairies: 'faerie', mice: 'mouse', dice: 'dice' };
+const ALIASES: Record<string, string> = { fairy: 'faerie', fairies: 'faerie', mice: 'mouse', dice: 'dice' };
 
 /** Plausible dictionary forms of a word: "exiles" → exile, "elves" → elf, "copies" → copy. */
 function stems(word: string): string[] {
   return [
     word,
-    TRIBE_ALIASES[word] ?? '',
+    ALIASES[word] ?? '',
     word.replace(/ies$/, 'y'),
     word.replace(/ves$/, 'f'),
     word.replace(/es$/, ''),
@@ -578,15 +612,20 @@ function stems(word: string): string[] {
   ].filter(Boolean);
 }
 
-/** The gist of a leftover word, if it is a rules-text word or a creature type. */
+/**
+ * The gist of a leftover word: a rules-text word (hand-picked first, then Scryfall's keywords)
+ * or a subtype like a creature type.
+ */
 function gistOf(word: string, next: string | undefined): GistWord | null {
   for (const stem of stems(word)) {
-    if (TRIBES.has(stem)) {
+    if (TEXT_WORDS[stem]) return { word, kind: 'text', value: TEXT_WORDS[stem], label: stem };
+    if (SUBTYPE_WORDS.has(stem)) {
       // "soldier tokens": the token's type, so look for it in the text instead.
       if (next?.startsWith('token')) return { word, kind: 'text', value: stem, label: stem };
-      return { word, kind: 'tribe', value: stem, label: stem };
+      return { word, kind: 'subtype', value: stem, label: stem };
     }
-    if (TEXT_WORDS[stem]) return { word, kind: 'text', value: TEXT_WORDS[stem], label: stem };
+    const keyword = KEYWORD_WORDS.get(stem);
+    if (keyword) return { word, kind: 'text', value: keyword, label: stem };
   }
   return null;
 }
@@ -605,6 +644,8 @@ export const SUGGESTION_WORDS = [
   enchantments creatures planeswalkers lands instants sorceries battles permanents commanders
   commander staples popular budget casual cheap`.split(/\s+/),
   ...Object.keys(TEXT_WORDS).filter((w) => w.length >= 6 && !/^(copies|cycle)$/.test(w)),
+  // Long keywords are the ones people misspell ("dethtouch", "flashbak").
+  ...[...KEYWORD_WORDS.keys()].filter((w) => w.length >= 7 && !STOPWORDS.has(w) && !(w in TEXT_WORDS)),
 ];
 
 /** Damerau–Levenshtein distance (with adjacent swaps), for typo suggestions. */
@@ -820,7 +861,7 @@ export function parsePhrase(input: string): ParseResult {
     ctx.gist.push(gist);
     recognized.push({
       text: word[0],
-      meaning: gist.kind === 'tribe' ? `is a ${gist.label}` : `card text mentions “${gist.label}”`,
+      meaning: gist.kind === 'subtype' ? `is or mentions ${gist.label}` : `card text mentions “${gist.label}”`,
     });
   });
 
@@ -1191,13 +1232,20 @@ function recursionNode(targets: string[]): QueryNode {
 }
 
 /**
- * The gist words as searches. Creature types become `t:`; up to three text words must appear
+ * The gist words as searches. Subtypes become `t:` or a mention; up to three text words must appear
  * in one ability (same line, any order), more than that each on their own.
  */
 function gistNodes(gist: GistWord[]): QueryNode[] {
+  // "elves": cards that are elves, or that mention them (lords, elf payoffs).
   const nodes: QueryNode[] = gist
-    .filter((g) => g.kind === 'tribe')
-    .map((g) => newRaw(`t:${g.value}`, `Is a ${g.label}`));
+    .filter((g) => g.kind === 'subtype')
+    .map((g) => {
+      const forms = [...new Set([g.value, g.word])].join('|');
+      return newGroup('or', [
+        newRaw(`t:${g.value}`, `Is a ${g.label}`),
+        newRaw(`o:/\\b(${forms})/`, `Mentions ${g.label}`),
+      ]);
+    });
   const text = gist.filter((g) => g.kind === 'text');
   if (text.length === 1) {
     nodes.push(newRaw(`o:/${text[0].value}/`, `Mentions “${text[0].label}”`));

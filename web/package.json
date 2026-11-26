@@ -6,7 +6,8 @@
     "start": "ng serve",
     "build": "ng build",
     "watch": "ng build --watch --configuration development",
-    "test": "ng test"
+    "test": "ng test",
+    "update-keywords": "node scripts/update-keywords.mjs"
   },
   "prettier": {
     "printWidth": 100,

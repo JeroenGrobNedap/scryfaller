@@ -352,8 +352,8 @@ describe('parsePhrase — the gist of longer sentences', () => {
     );
   });
 
-  it('creature types become a type filter, together with the rest', () => {
-    expect(query('elves that make tokens')).toBe('f:commander o:/creates? [^.]*token/ t:elf');
+  it('subtypes match cards that are one or mention one, together with the rest', () => {
+    expect(query('elves that make tokens')).toBe('f:commander o:/creates? [^.]*token/ (t:elf or o:/\\b(elf|elves)/)');
   });
 
   it('a creature type before "tokens" is about the token', () => {
@@ -363,5 +363,27 @@ describe('parsePhrase — the gist of longer sentences', () => {
 
   it('still reports words that mean nothing', () => {
     expect(parsePhrase('flying blorpers').unknown).toEqual(['blorpers']);
+  });
+});
+
+describe('parsePhrase — Scryfall keyword and subtype catalogs', () => {
+  it('knows keywords from the catalog, in any form', () => {
+    const r = parsePhrase('creatures with prowess and convoke');
+    expect(r.unknown).toEqual([]);
+    expect(query('creatures with prowess and convoke')).toContain('o:/prowess[^\\n]*convoke|');
+  });
+
+  it('knows keywords of more than one word', () => {
+    expect(query('first strike in boros')).toBe('id<=wr f:commander o:/first strike/');
+    expect(query('jump-start spells')).toContain('o:/jump-start/');
+  });
+
+  it('knows subtypes beyond the usual tribes', () => {
+    expect(query('curses in black')).toBe('id<=b f:commander (t:curse or o:/\\b(curse|curses)/)');
+    expect(query('dinosaurs')).toBe('f:commander (t:dinosaur or o:/\\b(dinosaur|dinosaurs)/)');
+  });
+
+  it('leaves out catalog words that read as plain English', () => {
+    expect(parsePhrase('epic cards to play').unknown).toEqual(['epic']);
   });
 });

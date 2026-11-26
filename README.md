@@ -38,6 +38,10 @@ More it understands:
   creature types, in any form (`exiles`, `graveyards`, `elves`). `zombies that return creatures from my graveyard
   and give them haste` → `t:zombie` plus return + graveyard + haste in the same ability. `graveyard hate` /
   `cards that exile cards in graveyards` has its own recipe.
+- **Every keyword and subtype:** all of Scryfall's keyword abilities, keyword actions and ability words
+  (`prowess`, `convoke`, `first strike`, `jump-start`…) and every creature, artifact, enchantment, land and spell
+  type (`dinosaurs`, `curses`, `equipment`…). A subtype finds cards that are one *or* mention one, so
+  `elves` includes elf lords. Refresh the lists after a new set with `npm run update-keywords` in `web/`.
 - **Typos:** misspelled words get a clickable "did you mean …?". Your last 10 searches are listed under the box.
 
 Your deck filters (colors, format, price, Game Changers, rarity, sort) stay as you set them in the panel;
